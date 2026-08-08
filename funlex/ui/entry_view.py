@@ -52,10 +52,9 @@ class EntryView(QTextBrowser):
         msg = f"未找到该单词：<b>{word}</b>" if word else "未找到该单词"
         html = f"""
 <body>
-<div style="padding: 40px; text-align: center; color: #8e8e93;">
-    <div style="font-size: 48px; margin-bottom: 12px;">📖</div>
-    <div style="font-size: 18px; color: #1d1d1f;">{msg}</div>
-    <div style="font-size: 13px; margin-top: 12px;">试试其他拼写或切换词典</div>
+<div style="padding: 48px 40px; text-align: center; color: #8e8e93;">
+    <div style="font-size: 20px; color: #1d1d1f; font-weight: 500;">{msg}</div>
+    <div style="font-size: 13px; margin-top: 12px; color: #6e6e73;">试试其他拼写或切换词典</div>
 </div>
 </body>
 """
@@ -64,11 +63,11 @@ class EntryView(QTextBrowser):
     def show_placeholder(self) -> None:
         html = """
 <body>
-<div style="padding: 60px 40px; text-align: center; color: #8e8e93;">
-    <div style="font-size: 56px; margin-bottom: 16px;">🔍</div>
-    <div style="font-size: 20px; color: #1d1d1f; font-weight: 500;">FuncLex</div>
-    <div style="font-size: 14px; margin-top: 12px; color: #6e6e73;">输入单词开始查询</div>
-    <div style="font-size: 12px; margin-top: 16px; color: #8e8e93;">本地 MDX 词典 · 完全离线</div>
+<div style="padding: 64px 40px; text-align: center; color: #8e8e93;">
+    <div style="font-size: 24px; color: #1d1d1f; font-weight: 600; letter-spacing: -0.3px;">FuncLex</div>
+    <div style="width: 36px; height: 1px; background-color: #d2d2d7; margin: 18px auto;"></div>
+    <div style="font-size: 14px; color: #6e6e73;">输入单词开始查询</div>
+    <div style="font-size: 12px; margin-top: 14px; color: #a1a1a6;">本地 MDX 词典 · 完全离线</div>
 </div>
 </body>
 """
@@ -77,8 +76,8 @@ class EntryView(QTextBrowser):
     def show_loading(self, word: str = "") -> None:
         html = f"""
 <body>
-<div style="padding: 40px; text-align: center; color: #8e8e93;">
-    <div style="font-size: 16px;">正在查询 "{word}"...</div>
+<div style="padding: 48px 40px; text-align: center; color: #8e8e93;">
+    <div style="font-size: 15px; color: #6e6e73;">正在查询 “{word}”…</div>
 </div>
 </body>
 """

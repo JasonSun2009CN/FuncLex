@@ -1,4 +1,14 @@
-"""QSS 样式 - macOS 风格的现代简洁主题"""
+"""QSS 样式 - Liquid Glass Minimalism（Minimalism 2.0 + Liquid Glass）
+
+设计系统（ui-ux-pro-max 推荐）：
+- STYLE: Liquid Glass —— 半透明玻璃面板、柔和冷灰渐变背景、系统蓝点缀
+- COLORS: 玻璃白 #FFFFFF / 次色 #E5E5E5 / CTA #007AFF / 文字 #1D1D1F
+- TYPOGRAPHY: 系统字体栈（PingFang SC / SF Pro / Inter）
+- 原则：克制留白、细发丝边框、小圆角(12-16px)、低饱和辅助色、焦点环明显
+
+说明：Qt 6.11 未暴露 macOS 原生 vibrancy，采用纯 QSS 半透明"假玻璃"，
+面板叠在柔和渐变背景上形成浮起感，稳定且无渲染风险。
+"""
 from __future__ import annotations
 
 import re
@@ -17,76 +27,146 @@ def sanitize_html(html: str) -> str:
         return html
     return _HTML_STRIP_RE.sub("", html)
 
-# 主样式（颜色集中管理，方便后续切换暗色主题）
+
+# 主样式（Liquid Glass Minimalism）
 MAIN_QSS = """
-/* 全局 */
+/* ============ 全局 ============ */
 QMainWindow {
-    background-color: #f5f5f7;
+    /* 柔和冷灰渐变背景，玻璃卡片在其上"浮起" */
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #eff0f5, stop:1 #e4e5ee);
 }
-
 QWidget {
-    font-family: -apple-system, "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+    font-family: -apple-system, "PingFang SC", "SF Pro Text", "Inter", "Helvetica Neue", "Microsoft YaHei", sans-serif;
     color: #1d1d1f;
+    font-size: 13px;
 }
-
-/* 搜索框 */
-QFrame#searchContainer {
-    background-color: #ffffff;
-    border-bottom: 1px solid #e5e5ea;
-}
-
-QLineEdit#searchInput {
-    background-color: #f5f5f7;
-    border: 1px solid #d2d2d7;
+QToolTip {
+    background-color: rgba(255,255,255,0.95);
+    color: #1d1d1f;
+    border: 1px solid rgba(0,0,0,0.08);
     border-radius: 8px;
-    padding: 8px 12px;
+    padding: 6px 10px;
+}
+
+/* ============ 搜索区（顶部玻璃条） ============ */
+QWidget#searchContainer {
+    background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
+                stop:0 rgba(255,255,255,0.82), stop:1 rgba(255,255,255,0.45));
+    border-bottom: 1px solid rgba(255,255,255,0.85);
+}
+QLineEdit#searchInput {
+    background-color: rgba(255,255,255,0.55);
+    border: 1px solid rgba(0,0,0,0.05);
+    border-radius: 12px;
+    padding: 9px 14px;
     font-size: 15px;
     color: #1d1d1f;
     selection-background-color: #007aff;
     selection-color: #ffffff;
 }
-
-QLineEdit#searchInput:focus {
-    border: 1px solid #007aff;
-    background-color: #ffffff;
+QLineEdit#searchInput:hover {
+    background-color: rgba(255,255,255,0.7);
 }
-
+QLineEdit#searchInput:focus {
+    border: 1px solid rgba(0,122,255,0.55);
+    background-color: rgba(255,255,255,0.88);
+}
+QLineEdit#searchInput::placeholder {
+    color: #8e8e93;
+}
 QPushButton#clearButton {
     background-color: transparent;
     border: none;
     color: #8e8e93;
     font-size: 14px;
     padding: 4px 8px;
-    border-radius: 4px;
+    border-radius: 6px;
 }
-
 QPushButton#clearButton:hover {
-    background-color: #e5e5ea;
+    background-color: rgba(0,0,0,0.06);
     color: #1d1d1f;
 }
 
-/* 发音按钮 */
+/* ============ 发音按钮（玻璃胶囊） ============ */
 QPushButton#pronounceBtn {
-    background-color: #ffffff;
-    border: 1px solid #d2d2d7;
-    border-radius: 6px;
-    font-size: 15px;
-    padding: 4px 10px;
+    background-color: rgba(255,255,255,0.6);
+    border: 1px solid rgba(255,255,255,0.9);
+    border-radius: 10px;
+    font-size: 14px;
+    padding: 5px 12px;
     min-width: 34px;
 }
 QPushButton#pronounceBtn:hover:enabled {
-    border: 1px solid #007aff;
-    background-color: #f0f5ff;
+    border: 1px solid rgba(0,122,255,0.5);
+    background-color: rgba(0,122,255,0.12);
+}
+QPushButton#pronounceBtn:pressed:enabled {
+    background-color: rgba(0,122,255,0.2);
 }
 QPushButton#pronounceBtn:disabled {
     color: #c7c7cc;
-    border-color: #e5e5ea;
+    background-color: rgba(255,255,255,0.35);
 }
 
-/* 历史侧边栏 */
+/* ============ 词典切换下拉（玻璃） ============ */
+QComboBox#dictSelector {
+    background-color: rgba(255,255,255,0.6);
+    border: 1px solid rgba(255,255,255,0.9);
+    border-radius: 10px;
+    padding: 6px 12px;
+    font-size: 13px;
+    min-width: 180px;
+}
+QComboBox#dictSelector:hover {
+    border: 1px solid rgba(0,122,255,0.45);
+    background-color: rgba(255,255,255,0.8);
+}
+QComboBox#dictSelector::drop-down {
+    border: none;
+    width: 18px;
+}
+QComboBox#dictSelector QAbstractItemView {
+    background-color: rgba(250,250,252,0.97);
+    border: 1px solid rgba(0,0,0,0.06);
+    border-radius: 10px;
+    selection-background-color: rgba(0,122,255,0.12);
+    selection-color: #0a4fa0;
+    padding: 4px;
+    outline: none;
+}
+
+/* ============ 内容区（玻璃卡片） ============ */
+QStackedWidget, QSplitter {
+    background: transparent;
+}
+QTextBrowser#entryView {
+    background-color: rgba(255,255,255,0.78);
+    border: 1px solid rgba(255,255,255,0.95);
+    border-radius: 14px;
+    margin: 12px;
+    padding: 14px 20px;
+    font-size: 15px;
+    line-height: 1.6;
+}
+QTextBrowser#entryView:focus {
+    border: 1px solid rgba(0,122,255,0.35);
+}
+QSplitter::handle {
+    background: transparent;
+    width: 8px;
+    margin: 14px 2px;
+    border-radius: 4px;
+}
+QSplitter::handle:hover {
+    background: rgba(0,122,255,0.2);
+}
+
+/* ============ 历史侧边栏（玻璃侧板） ============ */
 QWidget#historyPanel {
-    background-color: #fafafa;
-    border-left: 1px solid #e5e5ea;
+    background: qlineargradient(x1:1,y1:0,x2:0,y2:0,
+                stop:0 rgba(255,255,255,0.5), stop:1 rgba(255,255,255,0.28));
+    border-left: 1px solid rgba(255,255,255,0.9);
 }
 QLabel#panelTitle {
     font-size: 13px;
@@ -95,8 +175,8 @@ QLabel#panelTitle {
 }
 QLabel#panelCount {
     font-size: 11px;
-    color: #8e8e93;
-    background-color: #e5e5ea;
+    color: #6e6e73;
+    background-color: rgba(0,0,0,0.05);
     border-radius: 8px;
     padding: 1px 7px;
 }
@@ -106,125 +186,146 @@ QPushButton#panelClearBtn {
     color: #007aff;
     font-size: 12px;
     padding: 2px 6px;
-    border-radius: 4px;
+    border-radius: 6px;
 }
 QPushButton#panelClearBtn:hover {
-    background-color: #e5e5ea;
+    background-color: rgba(0,122,255,0.12);
 }
 QListWidget#historyList {
     background-color: transparent;
     border: none;
     font-size: 13px;
     color: #1d1d1f;
+    outline: none;
 }
 QListWidget#historyList::item {
     padding: 6px 10px;
-    border-radius: 6px;
-    margin: 1px 4px;
+    border-radius: 8px;
+    margin: 1px 6px;
 }
 QListWidget#historyList::item:hover {
-    background-color: #ececf1;
+    background-color: rgba(255,255,255,0.55);
 }
 QListWidget#historyList::item:selected {
-    background-color: #dcdcff;
-    color: #1d1d1f;
+    background-color: rgba(0,122,255,0.14);
+    color: #0a4fa0;
 }
 
-/* 词典切换下拉框 */
-QComboBox#dictSelector {
-    background-color: #ffffff;
-    border: 1px solid #d2d2d7;
-    border-radius: 6px;
-    padding: 6px 10px;
-    font-size: 13px;
-    min-width: 180px;
+/* ============ 设置对话框（玻璃卡片） ============ */
+QDialog {
+    background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
+                stop:0 #f4f4f8, stop:1 #e8e9f0);
 }
-
-QComboBox#dictSelector:hover {
-    border: 1px solid #007aff;
+QDialog QLineEdit, QDialog QSpinBox, QDialog QComboBox {
+    background-color: rgba(255,255,255,0.8);
+    border: 1px solid rgba(0,0,0,0.07);
+    border-radius: 8px;
+    padding: 5px 9px;
 }
-
-QComboBox#dictSelector::drop-down {
-    border: none;
-    width: 18px;
+QDialog QLineEdit:focus, QDialog QSpinBox:focus {
+    border: 1px solid rgba(0,122,255,0.5);
 }
-
-QComboBox#dictSelector QAbstractItemView {
-    background-color: #ffffff;
-    border: 1px solid #d2d2d7;
-    selection-background-color: #007aff;
-    selection-color: #ffffff;
+QDialog QListWidget {
+    background-color: rgba(255,255,255,0.75);
+    border: 1px solid rgba(0,0,0,0.07);
+    border-radius: 10px;
     padding: 4px;
+    outline: none;
 }
-
-/* 词条显示区 */
-QTextBrowser#entryView {
-    background-color: #ffffff;
+QDialog QPushButton {
+    background-color: rgba(255,255,255,0.7);
+    border: 1px solid rgba(0,0,0,0.07);
+    border-radius: 8px;
+    padding: 6px 14px;
+}
+QDialog QPushButton:hover {
+    background-color: rgba(255,255,255,0.95);
+    border-color: rgba(0,122,255,0.4);
+}
+QDialog QPushButton:default {
+    background-color: #007aff;
+    color: #ffffff;
     border: none;
-    padding: 16px 24px;
-    font-size: 15px;
-    line-height: 1.5;
+}
+QDialog QPushButton:default:hover {
+    background-color: #0a84ff;
+}
+QDialog QRadioButton::indicator {
+    width: 14px; height: 14px;
+}
+QDialog QRadioButton::indicator:checked {
+    background-color: #007aff;
+    border: 2px solid #ffffff;
+    border-radius: 7px;
 }
 
-/* 状态栏 */
+/* ============ 状态栏（极简） ============ */
 QStatusBar {
-    background-color: #f5f5f7;
+    background: transparent;
     color: #6e6e73;
-    border-top: 1px solid #e5e5ea;
+    border-top: 1px solid rgba(255,255,255,0.6);
     font-size: 12px;
+    padding: 3px 12px;
 }
+QStatusBar::item { border: none; }
 
-/* 滚动条 */
+/* ============ 滚动条（细、半透明） ============ */
 QScrollBar:vertical {
-    background-color: transparent;
-    width: 10px;
-    margin: 0;
+    background: transparent;
+    width: 9px;
+    margin: 4px;
 }
 QScrollBar::handle:vertical {
-    background-color: #c7c7cc;
-    border-radius: 5px;
-    min-height: 30px;
+    background: rgba(0,0,0,0.14);
+    border-radius: 4px;
+    min-height: 32px;
 }
 QScrollBar::handle:vertical:hover {
-    background-color: #a1a1a6;
-}
-QScrollBar::add-line:vertical,
-QScrollBar::sub-line:vertical {
-    height: 0;
-    background: none;
+    background: rgba(0,0,0,0.24);
 }
 QScrollBar:horizontal {
-    background-color: transparent;
-    height: 10px;
+    background: transparent;
+    height: 9px;
+    margin: 4px;
 }
 QScrollBar::handle:horizontal {
-    background-color: #c7c7cc;
-    border-radius: 5px;
-    min-width: 30px;
+    background: rgba(0,0,0,0.14);
+    border-radius: 4px;
+    min-width: 32px;
+}
+QScrollBar::handle:horizontal:hover {
+    background: rgba(0,0,0,0.24);
+}
+QScrollBar::add-line, QScrollBar::sub-line {
+    height: 0; width: 0;
+    background: none;
+}
+QScrollBar::add-page, QScrollBar::sub-page {
+    background: transparent;
 }
 """
 
 
-# EntryView 内嵌的 HTML CSS（用于美化 MDX 原始 HTML 排版）
-# QTextBrowser 不支持 flex/grid，只能用基础 CSS
+# EntryView 内嵌 HTML 的默认样式（Liquid Glass 一致、保证词条可读性）
 ENTRY_DEFAULT_CSS = """
 <style>
 body {
-    font-family: -apple-system, "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+    font-family: -apple-system, "PingFang SC", "SF Pro Text", "Inter", "Helvetica Neue", sans-serif;
     color: #1d1d1f;
-    line-height: 1.6;
+    line-height: 1.7;
     margin: 0;
     padding: 0;
 }
 h1, h2, h3 {
     color: #1d1d1f;
-    margin-top: 12px;
+    margin-top: 14px;
     margin-bottom: 8px;
 }
 /* 牛津 headword */
 .headword, .hw {
-    font-size: 22px;
+    font-size: 24px;
     font-weight: 600;
+    letter-spacing: -0.2px;
     color: #1d1d1f;
 }
 /* 音标 */
@@ -236,14 +337,14 @@ h1, h2, h3 {
 }
 /* 词性标签 */
 .pos, .posi, .partofspeech {
-    color: #6e6e73;
+    color: #8e8e93;
     font-style: italic;
     font-size: 13px;
     margin-right: 4px;
 }
 /* 例句 */
-.example, .eg, .examples {
-    color: #424245;
+.example, .eg, .examples, .x {
+    color: #3a3a3c;
     font-style: italic;
     margin: 4px 0 4px 16px;
     display: block;
@@ -266,7 +367,9 @@ a {
     color: #007aff;
     text-decoration: none;
 }
-/* 段落 */
+a:hover {
+    text-decoration: underline;
+}
 p {
     margin: 6px 0;
 }
@@ -275,36 +378,36 @@ ul, ol {
     padding-left: 24px;
 }
 li {
-    margin: 2px 0;
-}
-/* 折叠块 / 隐藏 oald10.css 外链 */
-link[rel="stylesheet"] {
-    display: none;
+    margin: 3px 0;
 }
 /* 相关短语 / 习语区块（P2.3） */
 .related-block {
-    margin-top: 24px;
+    margin-top: 26px;
     padding-top: 16px;
-    border-top: 1px solid #e5e5ea;
+    border-top: 1px solid rgba(0,0,0,0.08);
 }
 .related-title {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
-    color: #6e6e73;
-    margin-bottom: 8px;
+    color: #8e8e93;
+    letter-spacing: 0.3px;
+    margin-bottom: 10px;
 }
 .related-items {
     display: block;
 }
 a.related-item {
     display: inline-block;
-    margin: 2px 6px 2px 0;
-    padding: 3px 10px;
-    border-radius: 12px;
-    background-color: #f0f5ff;
-    color: #007aff;
+    margin: 3px 6px 3px 0;
+    padding: 4px 12px;
+    border-radius: 14px;
+    background-color: rgba(0,122,255,0.08);
+    color: #0a5cbf;
     font-size: 13px;
     text-decoration: none;
+}
+a.related-item:hover {
+    background-color: rgba(0,122,255,0.16);
 }
 </style>
 """

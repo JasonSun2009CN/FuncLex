@@ -1,14 +1,16 @@
 """主窗口 - 搜索栏 + 词典切换 + 发音 + 词条视图(默认/等分) + 历史侧边栏 + 状态栏"""
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Optional
 from urllib.parse import quote, unquote
 import sys
 
-from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QAction, QFont, QKeySequence
+from PySide6.QtCore import QSize, Qt, QUrl
+from PySide6.QtGui import QAction, QColor, QFont, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QComboBox,
+    QGraphicsDropShadowEffect,
     QHBoxLayout,
     QMainWindow,
     QPushButton,
@@ -18,6 +20,28 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+_UI_DIR = Path(__file__).parent
+_ASSET_DIR = _UI_DIR / "assets"
+
+
+def _glass_shadow(widget: QWidget, blur: int = 22, dy: int = 3, alpha: int = 30) -> None:
+    """给控件挂柔和投影，强化玻璃浮起感（Liquid Glass）"""
+    eff = QGraphicsDropShadowEffect(widget)
+    eff.setBlurRadius(blur)
+    eff.setColor(QColor(20, 24, 40, alpha))
+    eff.setOffset(0, dy)
+    widget.setGraphicsEffect(eff)
+
+
+def _speaker_icon() -> QIcon:
+    """发音按钮图标：启用态深色 / 禁用态浅灰（SVG，非 emoji）"""
+    icon = QIcon()
+    normal = str(_ASSET_DIR / "speaker.svg")
+    disabled = str(_ASSET_DIR / "speaker_disabled.svg")
+    icon.addFile(normal, QSize(20, 20), QIcon.Mode.Normal, QIcon.State.Off)
+    icon.addFile(disabled, QSize(20, 20), QIcon.Mode.Disabled, QIcon.State.Off)
+    return icon
 
 from funlex.core.config import ConfigManager
 from funlex.core.dictionary import DictionaryService
@@ -72,16 +96,19 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # 顶部：搜索栏
+        # 顶部：搜索栏（玻璃条 + 柔和投影）
         self.search_bar = SearchBar(central)
         root.addWidget(self.search_bar)
+        _glass_shadow(self.search_bar, blur=22, dy=3, alpha=30)
 
         # header 行：发音按钮 + 词典切换
         header = QHBoxLayout()
         header.setContentsMargins(16, 0, 16, 8)
         header.setSpacing(8)
-        self.pronounce_btn = QPushButton("🔊", central)
+        self.pronounce_btn = QPushButton(central)
         self.pronounce_btn.setObjectName("pronounceBtn")
+        self.pronounce_btn.setIcon(_speaker_icon())
+        self.pronounce_btn.setIconSize(QSize(20, 20))
         self.pronounce_btn.setToolTip("朗读当前词（⌘P）")
         self.pronounce_btn.setCursor(Qt.PointingHandCursor)
         self.pronounce_btn.setEnabled(False)
