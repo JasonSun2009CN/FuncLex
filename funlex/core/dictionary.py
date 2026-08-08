@@ -1,30 +1,45 @@
-"""词典管理服务 - 扫描路径、加载 MDX、维护内存索引、查询/前缀匹配"""
+"""词典管理服务 - 扫描路径、SQLite 索引、查询/前缀匹配/短语反向索引
+
+Phase 2 重构：索引从内存 dict 换成 SQLite（`data/index.db`）。
+- scan() 只 stat + 指纹校验：MDX 未变更时**不打开文件**，启动 <2s
+- 首次见到的词典打开取词条数并分类（内容启发式识别纯音频词典为"发音资源"，不进查询列表）
+- 索引构建放后台线程（build_index + pending_builds），已构建词典即查即用
+- lookup 走 SQLite 并解析 @@@LINK= 跳转链；命中后懒做结构化解析（P2.2）
+"""
 from __future__ import annotations
 
 import glob
 import os
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
-from .models import DictionaryEntry, DictionaryInfo
+from .indexer import SQLiteIndex
 from .mdx_parser import MdxParser
+from .models import DictionaryEntry, DictionaryInfo, PhraseItem
+from .parser import parse_entry
+
+_AUDIO_SAMPLE = 30
+_AUDIO_SOUND_RATIO = 0.8
+_AUDIO_MAX_AVG_LEN = 600
 
 
 class DictionaryService:
-    """多词典管理。
+    """多词典管理。公开 API 与 Phase 1 兼容，UI 层零破坏。"""
 
-    MVP 设计：
-    - 加载时遍历 MDX 所有词条，存到内存 dict: {dict_name: {word_lower: raw_html}}
-    - lookup 用大小写不敏感的小写 key
-    - suggest 做简单前缀扫描，遍历 keys
-    """
-
-    def __init__(self, paths: Optional[List[str]] = None) -> None:
-        # 内存索引：{dict_name: {word_lower: raw_html}}
-        self._index: Dict[str, Dict[str, str]] = {}
-        # 词典元信息：{dict_name: DictionaryInfo}
+    def __init__(
+        self,
+        paths: Optional[List[str]] = None,
+        data_dir: Optional[str] = None,
+    ) -> None:
+        self.data_dir = data_dir or os.path.join(os.getcwd(), "data")
+        self._index = SQLiteIndex(os.path.join(self.data_dir, "index.db"))
+        # 查询词典元信息：{name: DictionaryInfo}
         self._infos: Dict[str, DictionaryInfo] = {}
-        # 解析器缓存 (避免重复加载)
-        self._parsers: Dict[str, MdxParser] = {}
+        # 待构建索引的词典名
+        self._pending: List[str] = []
+        # 发音资源（纯音频词典，不参与查询）
+        self._audio_name: Optional[str] = None
+        self._audio_path: Optional[str] = None
+        self._audio_words: Optional[Set[str]] = None
 
         if paths is None:
             paths = self._default_paths()
@@ -48,49 +63,117 @@ class DictionaryService:
                     seen[os.path.abspath(f)] = f
         return list(seen.values())
 
-    # ---------- 加载 ----------
-    def scan(self) -> List[DictionaryInfo]:
-        """扫描所有 configured_paths，发现 MDX 文件并加载到内存索引"""
-        loaded_infos: List[DictionaryInfo] = []
-        for file_path in self._iter_mdx_files():
-            info = self.load_dictionary(file_path)
-            if info is not None:
-                loaded_infos.append(info)
-        # 按 entry_count 倒序排，方便 UI 默认选中最大的（通常是牛津第10版）
-        loaded_infos.sort(key=lambda i: i.entry_count, reverse=True)
-        return loaded_infos
+    # ---------- 分类 ----------
+    def _classify(self, parser: MdxParser) -> str:
+        """内容启发式：多数词条是 sound:// 链接且内容很短 → 'audio'，否则 'query'"""
+        sample = parser.sample_entries(_AUDIO_SAMPLE)
+        if not sample:
+            return "query"
+        sound = sum(1 for _, c in sample if "sound://" in c.lower())
+        avg_len = sum(len(c) for _, c in sample) / len(sample)
+        if sound / len(sample) >= _AUDIO_SOUND_RATIO and avg_len <= _AUDIO_MAX_AVG_LEN:
+            return "audio"
+        return "query"
 
-    def load_dictionary(self, file_path: str) -> Optional[DictionaryInfo]:
-        """加载单个 MDX，返回 DictionaryInfo；失败返回 None"""
+    # ---------- 扫描 / 加载 ----------
+    def scan(self) -> List[DictionaryInfo]:
+        """快速扫描：已构建的词典只做指纹校验，不加载全文。"""
+        self._infos.clear()
+        self._pending.clear()
+        self._audio_name = None
+        self._audio_path = None
+        for file_path in self._iter_mdx_files():
+            self._scan_one(file_path)
+        return self.list_dictionaries()
+
+    def _scan_one(self, file_path: str) -> None:
         if not os.path.isfile(file_path):
-            return None
+            return
         abs_path = os.path.abspath(file_path)
         name = os.path.basename(file_path)
-        if name in self._index:
-            return self._infos.get(name)
 
+        # 已知发音资源：跳过打开
+        if self._index.is_audio(name):
+            self._register_audio(name, abs_path)
+            return
+
+        # 已构建且指纹一致：不打开 MDX，词条数从 meta 读
+        if self._index.is_built(name, abs_path):
+            info = DictionaryInfo(
+                name, abs_path, self._index.get_count(name), loaded=True
+            )
+            self._infos[name] = info
+            return
+
+        # 首次见：打开取词条数 + 分类
         try:
             parser = MdxParser(abs_path)
-            # 构建小写索引
-            index: Dict[str, str] = {}
-            for word, content in parser.iter_entries():
-                if not word:
-                    continue
-                index[word.lower()] = content
-            info = parser.get_info()
-            info.loaded = True
-            self._index[name] = index
-            self._infos[name] = info
-            self._parsers[name] = parser
-            return info
+            count = parser.get_entry_count()
         except Exception as e:
-            # 单本词典加载失败不影响其他
+            print(f"[DictionaryService] Failed to inspect {file_path}: {e}")
+            return
+
+        if self._classify(parser) == "audio":
+            self._index.mark_audio(name)
+            self._register_audio(name, abs_path)
+            return
+
+        info = DictionaryInfo(name, abs_path, count, loaded=False)
+        self._infos[name] = info
+        self._pending.append(name)
+
+    def _register_audio(self, name: str, abs_path: str) -> None:
+        self._audio_name = name
+        self._audio_path = abs_path
+
+    def load_dictionary(self, file_path: str) -> Optional[DictionaryInfo]:
+        """同步加载单个 MDX 到索引（兼容旧 API / 手动重建）。"""
+        abs_path = os.path.abspath(file_path)
+        name = os.path.basename(file_path)
+        try:
+            parser = MdxParser(abs_path)
+        except Exception as e:
             print(f"[DictionaryService] Failed to load {file_path}: {e}")
             return None
+        if self._classify(parser) == "audio":
+            self._index.mark_audio(name)
+            self._register_audio(name, abs_path)
+            return None
+        count = self.build_index(name, parser=parser)
+        info = DictionaryInfo(name, abs_path, count, loaded=True)
+        self._infos[name] = info
+        if name in self._pending:
+            self._pending.remove(name)
+        return info
+
+    # ---------- 索引构建 ----------
+    def pending_builds(self) -> List[DictionaryInfo]:
+        """需要构建索引的词典（entry_count 已知，loaded=False）"""
+        return [self._infos[n] for n in self._pending]
+
+    def build_index(
+        self,
+        name: str,
+        parser: Optional[MdxParser] = None,
+        progress_cb=None,
+    ) -> int:
+        """构建某词典的索引（供后台线程调用）。返回词条数。"""
+        if parser is None:
+            info = self._infos.get(name)
+            if info is None:
+                return 0
+            parser = MdxParser(info.file_path)
+        count = self._index.build(parser, name, progress_cb)
+        if name in self._infos:
+            self._infos[name].entry_count = count
+            self._infos[name].loaded = True
+        if name in self._pending:
+            self._pending.remove(name)
+        return count
 
     # ---------- 查询 ----------
     def list_dictionaries(self) -> List[DictionaryInfo]:
-        """返回所有已加载词典（按 entry_count 倒序）"""
+        """已加载（索引就绪）的查询词典，按 entry_count 倒序"""
         infos = [i for i in self._infos.values() if i.loaded]
         infos.sort(key=lambda i: i.entry_count, reverse=True)
         return infos
@@ -99,11 +182,13 @@ class DictionaryService:
         infos = self.list_dictionaries()
         return infos[0] if infos else None
 
-    def lookup(self, word: str, dictionary_name: Optional[str] = None) -> Optional[DictionaryEntry]:
+    def lookup(
+        self, word: str, dictionary_name: Optional[str] = None
+    ) -> Optional[DictionaryEntry]:
         """查单词。
 
-        - dictionary_name=None: 默认在第一个词典查；查不到再依次尝试其他词典
-        - 返回 DictionaryEntry 或 None
+        - dictionary_name=None: 默认在第一个（最大的）词典查，查不到依次尝试其他
+        - 命中后做结构化懒解析（POS/音标/例句/习语），解析结果随词条返回
         """
         if not word or not word.strip():
             return None
@@ -112,49 +197,82 @@ class DictionaryService:
         if not infos:
             return None
 
-        def _query(name: str) -> Optional[Tuple[str, str]]:
-            idx = self._index.get(name, {})
-            return (name, idx[key]) if key in idx else None
+        def _query(name: str) -> Optional[DictionaryEntry]:
+            hit = self._index.lookup(key, name)
+            if hit is None:
+                return None
+            display, content = hit
+            return self._enrich(
+                DictionaryEntry(word=display, dictionary_name=name, raw_content=content)
+            )
 
-        if dictionary_name and dictionary_name in self._index:
-            hit = _query(dictionary_name)
-            if hit:
-                return DictionaryEntry(
-                    word=word.strip(),
-                    dictionary_name=hit[0],
-                    raw_content=hit[1],
-                )
-            return None
-
-        # 默认策略：先第一个（最大词典）
+        if dictionary_name and dictionary_name in self._infos:
+            return _query(dictionary_name)
         for info in infos:
             hit = _query(info.name)
-            if hit:
-                return DictionaryEntry(
-                    word=word.strip(),
-                    dictionary_name=hit[0],
-                    raw_content=hit[1],
-                )
+            if hit is not None:
+                return hit
         return None
 
-    def suggest(self, prefix: str, limit: int = 20) -> List[Tuple[str, str]]:
-        """前缀匹配，返回 [(word, dict_name), ...]，最多 limit 条。
+    def _enrich(self, entry: DictionaryEntry) -> DictionaryEntry:
+        """懒结构化解析：一次正则抽取填充音标/词性/例句/习语（P2.2）"""
+        if entry.raw_content and not entry.pos_tags:
+            parsed = parse_entry(entry.word, entry.dictionary_name, entry.raw_content)
+            entry.phonetic_uk = parsed.phonetic_uk
+            entry.phonetic_us = parsed.phonetic_us
+            entry.pos_tags = parsed.pos_tags
+            entry.examples = parsed.examples
+            entry.idioms = parsed.idioms
+            entry.phrasal_verbs = parsed.phrasal_verbs
+        return entry
 
-        MVP 实现：遍历所有已加载词典的 keys，挑出以 prefix 小写开头的。
-        """
+    def suggest(self, prefix: str, limit: int = 20) -> List[Tuple[str, str]]:
+        """前缀匹配，返回 [(word, dict_name), ...]。按词典 priority 聚合。"""
         if not prefix:
             return []
-        p = prefix.lower()
         results: List[Tuple[str, str]] = []
-        # 按词典 entry_count 倒序遍历，大的优先
         for info in self.list_dictionaries():
-            idx = self._index.get(info.name, {})
-            for w in idx.keys():
-                if w.startswith(p):
-                    results.append((w, info.name))
-                    if len(results) >= limit:
-                        return results
+            words = self._index.suggest(prefix, info.name, limit - len(results))
+            for w in words:
+                results.append((w, info.name))
+            if len(results) >= limit:
+                break
         return results
 
+    def related_phrases(
+        self, word: str, dictionary_name: Optional[str] = None
+    ) -> List[PhraseItem]:
+        """某词头的相关短语/习语（P2.3 反向索引）"""
+        names = (
+            [dictionary_name]
+            if dictionary_name
+            else [i.name for i in self.list_dictionaries()]
+        )
+        out: List[PhraseItem] = []
+        for n in names:
+            out.extend(self._index.related_phrases(word, n))
+        return out
+
+    def has_audio(self, word: str) -> bool:
+        """发音资源里是否有该词的 Collins 原声（懒加载词表）"""
+        if self._audio_name is None:
+            return False
+        self._ensure_audio_words()
+        return word.strip().lower() in self._audio_words
+
+    def _ensure_audio_words(self) -> None:
+        if self._audio_words is not None:
+            return
+        words: Set[str] = set()
+        if self._audio_path:
+            try:
+                parser = MdxParser(self._audio_path)
+                for w, _ in parser.iter_entries():
+                    if w:
+                        words.add(w.lower())
+            except Exception as e:
+                print(f"[DictionaryService] failed to load audio words: {e}")
+        self._audio_words = words
+
     def total_entries(self) -> int:
-        return sum(len(idx) for idx in self._index.values())
+        return sum(i.entry_count for i in self._infos.values() if i.loaded)

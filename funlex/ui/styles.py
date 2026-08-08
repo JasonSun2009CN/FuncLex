@@ -1,4 +1,21 @@
 """QSS 样式 - macOS 风格的现代简洁主题"""
+from __future__ import annotations
+
+import re
+
+# QTextDocument 的 HTML 导入器遇到开头的 <link> 会丢弃整个文档
+# （实测：raw_content 以 <link rel="stylesheet"> 开头时 setHtml 后 blockCount==1、正文为空）。
+# 渲染前剥离 <link>/<script>/注释，避免内容丢失。
+_HTML_STRIP_RE = re.compile(
+    r"<link[^>]*>|<script[^>]*>.*?</script>|<!--.*?-->", re.I | re.S
+)
+
+
+def sanitize_html(html: str) -> str:
+    """剥离会破坏 QTextDocument HTML 导入的标签（link/script/注释）。"""
+    if not html:
+        return html
+    return _HTML_STRIP_RE.sub("", html)
 
 # 主样式（颜色集中管理，方便后续切换暗色主题）
 MAIN_QSS = """
@@ -45,6 +62,71 @@ QPushButton#clearButton {
 
 QPushButton#clearButton:hover {
     background-color: #e5e5ea;
+    color: #1d1d1f;
+}
+
+/* 发音按钮 */
+QPushButton#pronounceBtn {
+    background-color: #ffffff;
+    border: 1px solid #d2d2d7;
+    border-radius: 6px;
+    font-size: 15px;
+    padding: 4px 10px;
+    min-width: 34px;
+}
+QPushButton#pronounceBtn:hover:enabled {
+    border: 1px solid #007aff;
+    background-color: #f0f5ff;
+}
+QPushButton#pronounceBtn:disabled {
+    color: #c7c7cc;
+    border-color: #e5e5ea;
+}
+
+/* 历史侧边栏 */
+QWidget#historyPanel {
+    background-color: #fafafa;
+    border-left: 1px solid #e5e5ea;
+}
+QLabel#panelTitle {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1d1d1f;
+}
+QLabel#panelCount {
+    font-size: 11px;
+    color: #8e8e93;
+    background-color: #e5e5ea;
+    border-radius: 8px;
+    padding: 1px 7px;
+}
+QPushButton#panelClearBtn {
+    background: transparent;
+    border: none;
+    color: #007aff;
+    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+QPushButton#panelClearBtn:hover {
+    background-color: #e5e5ea;
+}
+QListWidget#historyList {
+    background-color: transparent;
+    border: none;
+    font-size: 13px;
+    color: #1d1d1f;
+}
+QListWidget#historyList::item {
+    padding: 6px 10px;
+    border-radius: 6px;
+    margin: 1px 4px;
+}
+QListWidget#historyList::item:hover {
+    background-color: #ececf1;
+}
+QListWidget#historyList::item:selected {
+    background-color: #dcdcff;
     color: #1d1d1f;
 }
 
@@ -198,6 +280,31 @@ li {
 /* 折叠块 / 隐藏 oald10.css 外链 */
 link[rel="stylesheet"] {
     display: none;
+}
+/* 相关短语 / 习语区块（P2.3） */
+.related-block {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid #e5e5ea;
+}
+.related-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #6e6e73;
+    margin-bottom: 8px;
+}
+.related-items {
+    display: block;
+}
+a.related-item {
+    display: inline-block;
+    margin: 2px 6px 2px 0;
+    padding: 3px 10px;
+    border-radius: 12px;
+    background-color: #f0f5ff;
+    color: #007aff;
+    font-size: 13px;
+    text-decoration: none;
 }
 </style>
 """

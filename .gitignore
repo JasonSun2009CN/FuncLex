@@ -7,3 +7,6 @@ venv/
 *.egg-info/
 build/
 dist/
+# 运行时数据（SQLite 索引 / 历史 / 用户配置）
+data/
+config.json

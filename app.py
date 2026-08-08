@@ -7,6 +7,7 @@ import traceback
 
 from PySide6.QtWidgets import QApplication, QMessageBox
 
+from funlex.core.config import ConfigManager
 from funlex.core.dictionary import DictionaryService
 from funlex.ui.main_window import MainWindow
 from funlex.ui.styles import get_main_qss
@@ -23,9 +24,7 @@ def _excepthook(exc_type, exc_value, exc_tb) -> None:
 
 
 def main() -> int:
-    # macOS 上设置应用名（影响 dock 标签和快捷键）
     os.environ.setdefault("PYTHONUNBUFFERED", "1")
-
     sys.excepthook = _excepthook
 
     app = QApplication(sys.argv)
@@ -33,13 +32,17 @@ def main() -> int:
     app.setOrganizationName("FuncLex")
     app.setStyleSheet(get_main_qss())
 
+    # 配置（词典路径来自 config.json，未配置则走默认扫描目录）
+    config_mgr = ConfigManager()
+    paths = config_mgr.config.dictionary_paths or None
+
     try:
-        service = DictionaryService()
+        service = DictionaryService(paths=paths)
     except Exception as e:
         QMessageBox.critical(None, "词典加载失败", f"无法初始化词典服务：\n{e}")
         return 1
 
-    window = MainWindow(service)
+    window = MainWindow(service, config_mgr)
     window.show()
 
     return app.exec()

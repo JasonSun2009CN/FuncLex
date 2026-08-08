@@ -7,11 +7,11 @@ FuncLex 是一个基于 Python + PySide6 的本地桌面词典应用，支持读
 ## 当前状态
 
 **Phase 1 (MVP 基础框架) 已完成 ✅** — commit `525ba4b`
+**Phase 2 (核心功能增强) 已完成 ✅** — commit 待定
 
-- 6 本 MDX 实测加载 635,525 词条，启动 ~11s
-- 内存索引 + 大小写不敏感查询 + 前缀匹配
-- macOS 风格 QSS + 词条 HTML 渲染 + 友好提示
-- 完整数据模型 + 接口约定（见 `HANDOFF.md`）
+- 5 本真实词典 + 1 个发音资源，共 616,158 词条
+- SQLite 索引 + zlib 压缩，**二次启动 <1s**，内存占用大幅下降
+- 设置 / 历史 / 结构化解析 / 习语关联 / 等分视图 / 发音 全部落地
 
 ---
 
@@ -20,12 +20,13 @@ FuncLex 是一个基于 Python + PySide6 的本地桌面词典应用，支持读
 | 类别 | 选型 | 备注 |
 |------|------|------|
 | 语言 | Python 3.9+ | |
-| UI 框架 | PySide6 (Qt 6) | 6.5+ 已验证 6.11.0 |
+| UI 框架 | PySide6 (Qt 6) | 6.5+ 已验证 6.11.1 |
 | MDX 解析 | readmdict | 需 python-lzo 运行时 |
-| 索引（Phase 1）| 内存 dict | `{name: {word_lower: html}}` |
-| 索引（Phase 2）| SQLite (标准库) | 替代内存，启动加速 |
-| 富文本渲染 | QTextBrowser | Phase 2 可升级 QWebEngineView |
-| 配置（Phase 2）| JSON 文件 | 标准库 |
+| 索引 | SQLite (标准库) + zlib | `data/index.db`，内容压缩存储 |
+| 富文本渲染 | QTextBrowser | 等分视图用多个 QTextBrowser |
+| 发音 | QTextToSpeech | 系统离线 TTS；QtMultimedia 备接 .mdd |
+| 配置 | `config.json` | 项目根目录，标准库 |
+| 历史 | SQLite | `data/history.db` |
 | 包管理 | pip / requirements.txt | |
 
 ---
@@ -36,25 +37,27 @@ FuncLex 是一个基于 Python + PySide6 的本地桌面词典应用，支持读
 FunLex/
 ├── app.py                    # 应用入口
 ├── requirements.txt          # 依赖清单
-├── config.json               # 用户配置 (Phase 2 自动生成)
+├── config.json               # 用户配置（自动生成，gitignore）
 ├── funlex/
 │   ├── core/                 # 核心逻辑层 (无 UI 依赖)
 │   │   ├── models.py         # ✅ 数据模型
-│   │   ├── mdx_parser.py     # ✅ MDX 解析
-│   │   ├── dictionary.py     # ✅ 词典管理 + 查询
-│   │   ├── indexer.py        # 🔲 Phase 2 SQLite 索引
-│   │   ├── history.py        # 🔲 Phase 2 历史
-│   │   └── notes.py          # 🔲 Phase 3 笔记
+│   │   ├── mdx_parser.py     # ✅ MDX 解析（惰性迭代）
+│   │   ├── dictionary.py     # ✅ 词典服务（扫描/分类/查询/发音资源）
+│   │   ├── indexer.py        # ✅ SQLite 索引 + 短语反向索引
+│   │   ├── parser.py         # ✅ 词条结构化解析
+│   │   ├── history.py        # ✅ 查询历史
+│   │   └── config.py         # ✅ config.json 读写
 │   └── ui/                   # UI 层 (PySide6)
 │       ├── main_window.py    # ✅ 主窗口
 │       ├── search_bar.py     # ✅ 搜索框
-│       ├── entry_view.py     # ✅ 词条视图
-│       ├── entry_view_split.py  # 🔲 Phase 2 等分视图
-│       ├── settings_dialog.py   # 🔲 Phase 2 设置
-│       ├── history_panel.py     # 🔲 Phase 2 历史面板
-│       ├── notes_editor.py      # 🔲 Phase 3 笔记编辑器
+│       ├── entry_view.py     # ✅ 词条视图（默认）
+│       ├── entry_view_split.py  # ✅ 等分视图
+│       ├── settings_dialog.py   # ✅ 设置
+│       ├── history_panel.py     # ✅ 历史面板
+│       ├── pronounce.py         # ✅ 发音助手
+│       ├── build_worker.py      # ✅ 后台索引构建
 │       └── styles.py         # ✅ QSS + 默认 CSS
-├── data/                     # 本地数据 (Phase 2 自动生成 SQLite)
+├── data/                     # 运行时数据（SQLite 索引/历史，gitignore）
 └── dictionaries/             # 默认词典目录
 ```
 
@@ -62,62 +65,52 @@ FunLex/
 
 ## Phase 1: MVP 基础框架 ✅ 已完成
 
-### 目标
-建立可运行的最小化产品：能加载 MDX、搜索单词、显示词条释义。
-
-### 任务清单
-- [x] P1.1 项目目录结构与依赖配置 (`requirements.txt` + `python-lzo`)
+- [x] P1.1 项目目录结构与依赖配置
 - [x] P1.2 数据模型定义 (`models.py`)
 - [x] P1.3 MDX 解析模块 (`mdx_parser.py`)
 - [x] P1.4 词典管理核心类 (`DictionaryService`)
-- [x] P1.5 主窗口 UI 框架 (`main_window.py` + `search_bar.py`)
-- [x] P1.6 默认词条视图 (`entry_view.py` + `styles.py` 默认 CSS)
+- [x] P1.5 主窗口 UI 框架
+- [x] P1.6 默认词条视图
 - [x] P1.7 应用入口 (`app.py`)
 - [x] P1.8 MVP 联调与基本测试
 
-### 验收标准 (实测)
-1. ✅ `pip install -r requirements.txt` 安装成功
-2. ✅ `python app.py` 启动无报错
-3. ✅ 自动扫描项目根目录 + `dictionaries/` 下的 .mdx，自动加载
-4. ✅ 输入单词能搜索并显示原始 HTML 释义
-5. ✅ 支持基础 HTML 格式渲染（字体、颜色、列表、表格等）
-6. ✅ 大小写不敏感查询 + 词典切换 + 状态栏提示
-7. ✅ 未找到词条友好提示
-
-### 已知遗留
-- 启动偏慢（11s 加载 6 本，Phase 2 引入 SQLite 解决）
-- 已 track 的 `__pycache__/*.pyc` 待清理（HANDOFF §坑 6）
-- 复杂 MDX 排版偏差（Phase 2 升级 QWebEngineView）
-
 ---
 
-## Phase 2: 核心功能增强 🔲 进行中
+## Phase 2: 核心功能增强 ✅ 已完成
 
 ### 目标
-完善查询体验（SQLite 索引根治启动慢），支持多词性显示 + 两种视图切换 + 历史 + 设置。
+根治启动慢（SQLite 索引）、补齐设置/历史/结构化解析/习语关联/等分视图，并新增发音功能。
 
-### 任务清单（按接手优先级排）
+### 任务清单
+- [x] P2.1 SQLite 本地索引（替代内存 dict，二次启动 <1s）
+  - `data/index.db`：`entries` 表 PK(dict, word) WITHOUT ROWID，zlib 压缩内容
+  - 指纹（size+mtime）免重建；`@@@LINK=` 跳转解析（深度≤6）
+- [x] P2.2 词条结构化解析（`parser.py`，正则抽取牛津类语义 class）
+  - 音标（英/美 `.phons_br`/`.phons_n_am`）、词性 `.pos`、例句 `.x`、习语 `.idm`、短语 `.pvrefs/.xh`
+- [x] P2.3 Phrasal Verb / Idiom 关联搜索
+  - 构建期写入 `phrases` 反向索引表；词条底部"相关短语动词 / 习语"区块，点击跳转查询
+- [x] P2.4 等分视图 UI（`entry_view_split.py`）
+  - 按 `.pos` 标记切分 raw HTML 为等宽面板；无多词性自动降级单面板
+- [x] P2.5 Settings 对话框 + config.json（`config.py` + `settings_dialog.py`）
+  - 词典路径 / 默认词典 / 视图模式 / 历史条数 / 字号 / 字体
+- [x] P2.6 查询历史侧边栏（`history.py` + `history_panel.py`）
+  - SQLite 持久化、去重置顶、点击回查、右键删除、一键清空、超限裁剪
+- [x] P2.7 发音功能（`pronounce.py`，用户新增需求）
+  - 🔊 按钮 + ⌘P 朗读当前词（QTextToSpeech 离线）
+  - Collins Cobuild Audio.mdx 内容启发式识别为"发音资源"（不进查询列表），`has_audio()` 标记原声词头
 
-| # | 任务 | 描述 | 优先级 | 依赖 |
-|---|------|------|--------|------|
-| 1 | P2.5 Settings 对话框 + config.json | 先打通配置入口 | 🔴 P0 | 无 |
-| 2 | P2.6 查询历史侧边栏 | 数据模型已有，立刻可做 | 🔴 P0 | 无 |
-| 3 | P2.1 SQLite 本地索引 | 替代内存 dict，加速启动 + 节省内存 | 🔴 P0 | 无 |
-| 4 | P2.2 词条结构化解析 | 从 HTML 提取 POS / 例句 / 习语 | 🟡 P1 | 无 |
-| 5 | P2.3 Phrasal Verb / Idiom 关联搜索 | 基于 P2.2 的解析结果 | 🟡 P1 | P2.2 |
-| 6 | P2.4 等分视图 UI | 按 POS 拆分 QSplitter | 🟢 P2 | P2.2 |
+### 验收标准（实测）
+1. ✅ 启动 < 2s（实测二次启动 <1s，仅 stat + 指纹校验）
+2. ✅ 词典路径、默认词典、视图模式可配置（config.json + 设置对话框）
+3. ✅ 历史记录可点击回查
+4. ✅ 牛津第10版 POS / 例句 / 习语 / 短语动词能结构化抽取
+5. ✅ 等分视图可切换、能按词性分块
+6. ✅ 发音按钮可朗读；audio 词典正确分类为发音资源
 
-### 推荐接手顺序
-```
-P2.5 (Settings) → P2.6 (历史) → P2.1 (SQLite) → P2.2 (结构化) → P2.3 (习语) → P2.4 (等分视图)
-```
-
-### 验收标准
-- 启动 < 2s（SQLite 索引预构建）
-- 词典路径、默认词典、视图模式可配置
-- 历史记录可点击回查
-- 至少 1 个词典（牛津 10 版）的 POS / 例句 / 习语能结构化抽取
-- 等分视图可切换、能按词性分块
+### 遗留
+- 结构化解析主要针对牛津系 class（Collins/韦氏尽力而为）；多词典 class 全覆盖留待 Phase 3
+- Collins 真实音频需配套 `.mdd` 才能播放（当前 TTS 覆盖）
+- 启动后首次构建索引约 1.5 分钟（一次性）
 
 ---
 
@@ -130,16 +123,16 @@ P2.5 (Settings) → P2.6 (历史) → P2.1 (SQLite) → P2.2 (结构化) → P2.
 - [ ] P3.1 用户笔记模块（CRUD + SQLite 持久化）
 - [ ] P3.2 笔记编辑器 UI（嵌入词条页）
 - [ ] P3.3 搜索自动补全 / 模糊匹配
-- [ ] P3.4 历史记录侧边栏 UI（Phase 2 后端已就绪）
+- [ ] P3.4 历史记录侧边栏 UI 增强
 - [ ] P3.5 现代 QSS 样式主题（深色 / 浅色切换）
 - [ ] P3.6 多词典合并查询
 - [ ] P3.7 加载状态与错误提示优化
+- [ ] P3.8 复杂 MDX 排版升级 QWebEngineView（可选）
 
 ---
 
 ## Phase 4: 发布准备 🔲 待启动
 
-### 任务清单
 - [ ] P4.1 全面测试（边界情况、大型词典性能）
 - [ ] P4.2 异常处理与日志系统
 - [ ] P4.3 macOS 打包（PyInstaller）
@@ -151,55 +144,43 @@ P2.5 (Settings) → P2.6 (历史) → P2.1 (SQLite) → P2.2 (结构化) → P2.
 ## 关键设计决策
 
 ### 1. MDX 解析库选择
-**选型**: `readmdict` (https://github.com/liusheng/readmdict)
-- 纯 Python 实现，无需编译
-- 支持 MDX (词典数据) 和 MDD (资源文件: 图片/音频)
-- 社区活跃，支持最新 MDX 2.0 格式
+**选型**: `readmdict`（纯 Python，支持 MDX 2.0，社区活跃）。
 
-### 2. 索引策略演进
-- **Phase 1** ✅：内存 dict 全量加载，6 本 63 万词条 ~1–2GB RAM / 11s 启动
-- **Phase 2**：首次加载词典时遍历所有词条写入 SQLite + FTS5
-  - 表设计：`word (TEXT PK), dictionary_id, definition_blob, pos_tags`
-  - 索引路径：`~/.funlex/index.db` 或项目内 `data/`
-  - 启动 < 2s（只读索引）
+### 2. 索引策略
+- **Phase 1** ✅：内存 dict 全量加载（启动 11s、1–2GB RAM）→ 已弃用
+- **Phase 2** ✅：SQLite `data/index.db`，构建一次、终身读取
+  - `entries(dict, word, display, content)` PK(dict,word) WITHOUT ROWID，前缀查询走 PK 范围扫描
+  - 内容 zlib 压缩（`FORMAT_VERSION` 标记，格式变更自动重建）
+  - 指纹（size+mtime）存 meta 表，MDX 未变更不重建
+  - 构建在后台线程，进度显示于状态栏，已构建词典即查即用
 
-### 3. 两种视图切换策略
-- **默认视图** ✅：单栏顺序显示所有词性内容，保留原 HTML 排版
-- **等分视图**：按词性 (POS) 拆分，使用 QSplitter 等分布局
-- 切换通过 `QStackedWidget` 切换两个 View 组件
-- 设置存储在 `config.json` 中
+### 3. 两种视图切换
+- 默认视图：单栏保留原 HTML 排版
+- 等分视图：按 `.pos` 标记切分，QSplitter 等宽面板
+- `QStackedWidget` 切换，`config.view_mode` 持久化
 
-### 4. Phrasal Verb / Idiom 识别
-- 从 MDX 词条内容中用正则匹配特定 HTML class 或关键词（`<span class="phrv">`, `PHRASAL VERB`, `IDIOM`）
-- 建立反向索引：`phrase_word -> [headword1, headword2, ...]`
-- 词条页底部显示"相关短语动词 / 习语"区块，可点击跳转
+### 4. Phrasal Verb / Idiom 关联
+- 构建期 `extract_phrases()` 从 `.idm/.phrv/.pvrefs/.xh` 抽取，写入 `phrases(phrase, headword, dict, kind)`
+- 词条页底部渲染相关短语，点击以短语为词头重新查询
 
-### 5. 配置管理
-- 配置文件：`config.json`（项目根目录或 `~/.funlex/config.json`）
-- 配置项：
-  ```json
-  {
-    "dictionary_paths": ["dictionaries/", "/path/to/custom.mdx"],
-    "default_dictionary": "牛津高阶英汉双解词典 第10版.mdx",
-    "view_mode": "default",
-    "theme": "light",
-    "history_limit": 100,
-    "font_family": "PingFang SC",
-    "font_size": 14
-  }
-  ```
+### 5. 发音功能
+- QTextToSpeech 系统离线 TTS（macOS/Windows/Linux 原生支持）
+- Collins Audio.mdx 内容启发式分类（`>80% sound://` 且平均 <600B）为发音资源，词头集供 `has_audio()`
+- 真实 Collins 音频需配套 `.mdd`（QtMultimedia 已可用，见 HANDOFF）
 
-### 6. UI 框架选型
-- **MVP 选 QTextBrowser**：0 额外依赖，CSS 子集支持足够
-- **Phase 2 视情况升级 QWebEngineView**：完整 CSS/JS 支持，但 +100MB 依赖（PySide6-Addons）
+### 6. 配置管理
+- `config.json`（项目根），`ConfigManager` 读写，字段校验兜底
+
+### 7. UI 框架
+- QTextBrowser（0 额外依赖）；复杂排版可升级 QWebEngineView（Phase 3 可选）
 
 ---
 
 ## 提交历史
 
 ```
-180dcd5 Update README.md                  (README + 文档)
-525ba4b feat: Phase 1 MVP complete        (核心 + UI 全部代码)
-7646222 .mdx file being added             (词典文件)
-800d10f Initial commit                     (项目骨架)
+ba61595 docs: refresh README/ROADMAP/HANDOFF for Phase 1 complete + handoff
+525ba4b feat: Phase 1 MVP complete
+7646222 .mdx file being added
+800d10f Initial commit
 ```

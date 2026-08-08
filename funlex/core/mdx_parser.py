@@ -1,7 +1,14 @@
-"""MDX 文件解析 - 封装 readmdict，返回 (word, raw_html) 迭代器"""
+"""MDX 文件解析 - 封装 readmdict，返回 (word, raw_html) 迭代器
+
+内存模型（readmdict 实测）：
+- `MDX(path)` 构造时把**所有 key** 读进内存（获取词条数/前缀元数据），但**不加载内容**
+- `items()` 是惰性生成器，逐块解压 record block，内容不驻留内存
+因此这里不再 `list(items())` 物化全部内容（Phase 1 内存/启动慢的根源），
+内容消费交给上层按需迭代（如 SQLite 索引构建）。
+"""
 from __future__ import annotations
 
-from typing import Iterator, Tuple, Optional
+from typing import Iterator, List, Optional, Tuple
 
 from readmdict import MDX
 
@@ -11,14 +18,14 @@ from .models import DictionaryInfo
 class MdxParser:
     """单个 MDX 文件的封装。
 
-    设计原则：MVP 不做过度结构化解析，只把 content bytes 安全 decode 成 utf-8 字符串。
-    上层 (DictionaryService) 自行决定如何消费 raw HTML。
+    - get_entry_count(): 读取全部 key 后得到词条数（构造即加载 key，是唯一较大的扫描成本）
+    - iter_entries(): 惰性迭代 (word, raw_html)，可重复调用
+    - lookup(word): 线性扫描查找（仅在非索引路径使用，SQLite 就绪后不是热点）
     """
 
     def __init__(self, file_path: str) -> None:
         self.file_path = file_path
         self._mdx: Optional[MDX] = None
-        self._entries = None
         self._name: Optional[str] = None
         self._count: Optional[int] = None
 
@@ -26,30 +33,24 @@ class MdxParser:
     def _ensure_loaded(self) -> None:
         if self._mdx is None:
             self._mdx = MDX(self.file_path)
-            # readmdict 的 keys/values 是 [(bytes, bytes), ...] 列表
-            self._entries = list(self._mdix_items())
+            self._count = len(self._mdx)
 
-    def _mdix_items(self):
-        """兼容不同版本 readmdict 的 keys/items 接口"""
-        mdx = self._mdx
-        # 新版 (>=0.1.1) 通常提供 keys() / items()
-        if hasattr(mdx, "items"):
-            return mdx.items()
-        # 兜底：直接拿私有 keys/values
-        keys = mdx.keys() if hasattr(mdx, "keys") else getattr(mdx, "_keys", [])
-        values = mdx.values() if hasattr(mdx, "values") else getattr(mdx, "_values", [])
-        return zip(keys, values)
+    def _decode(self, b) -> str:
+        """readmdict 返回 bytes，统一 decode 兜底乱码"""
+        if isinstance(b, bytes):
+            return b.decode("utf-8", errors="replace")
+        return str(b)
 
     # ---------- 对外 API ----------
     def get_info(self) -> DictionaryInfo:
-        """词典元信息 (首次调用会触发加载以取 entry_count)"""
+        """词典元信息（会触发 key 加载以取 entry_count）"""
         import os
+
         name = os.path.basename(self.file_path)
         if self._name is None:
             self._name = name
         if self._count is None:
             self._ensure_loaded()
-            self._count = len(self._entries) if self._entries is not None else 0
         return DictionaryInfo(
             name=self._name,
             file_path=self.file_path,
@@ -60,43 +61,27 @@ class MdxParser:
     def get_entry_count(self) -> int:
         if self._count is None:
             self._ensure_loaded()
-            self._count = len(self._entries) if self._entries is not None else 0
-        return self._count
+        return self._count or 0
 
     def iter_entries(self) -> Iterator[Tuple[str, str]]:
-        """yield (word, raw_html)"""
+        """yield (word, raw_html)，惰性，可重复迭代"""
         self._ensure_loaded()
-        if self._entries is None:
-            return
-        for raw_k, raw_v in self._entries:
-            word = raw_k.decode("utf-8", errors="replace") if isinstance(raw_k, bytes) else str(raw_k)
-            content = raw_v.decode("utf-8", errors="replace") if isinstance(raw_v, bytes) else str(raw_v)
-            yield word, content
+        for raw_k, raw_v in self._mdx.items():  # type: ignore[union-attr]
+            yield self._decode(raw_k), self._decode(raw_v)
+
+    def sample_entries(self, n: int = 20) -> List[Tuple[str, str]]:
+        """取前 n 条 (word, raw_html)，用于内容启发式分类（如识别纯音频词典）"""
+        out: List[Tuple[str, str]] = []
+        for i, (w, c) in enumerate(self.iter_entries()):
+            if i >= n:
+                break
+            out.append((w, c))
+        return out
 
     def lookup(self, word: str) -> Optional[str]:
-        """精确查找单个词，返回 raw_html 或 None"""
-        self._ensure_loaded()
-        if self._entries is None:
-            return None
-        target = word.lower().encode("utf-8")
-        # 优先用 readmdict 自带 keys 索引 (如果提供)
-        if self._mdx is not None and hasattr(self._mdx, "keys"):
-            try:
-                # 牛津等 MDX 的 key 是 case-sensitive 的小写形式，但部分有大小写差异
-                # 这里做一次小写线性扫描以保证大小写不敏感
-                for raw_k, raw_v in self._entries:
-                    if isinstance(raw_k, bytes):
-                        if raw_k.lower() == target:
-                            return raw_v.decode("utf-8", errors="replace")
-                    else:
-                        if str(raw_k).lower() == word.lower():
-                            return str(raw_v)
-                return None
-            except Exception:
-                pass
-        # 兜底遍历
-        for raw_k, raw_v in self._entries:
-            key_str = raw_k.decode("utf-8", errors="replace") if isinstance(raw_k, bytes) else str(raw_k)
-            if key_str.lower() == word.lower():
-                return raw_v.decode("utf-8", errors="replace") if isinstance(raw_v, bytes) else str(raw_v)
+        """精确查找单个词，返回 raw_html 或 None（大小写不敏感线性扫描）"""
+        target = word.strip().lower()
+        for w, content in self.iter_entries():
+            if w.lower() == target:
+                return content
         return None

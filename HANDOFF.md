@@ -1,90 +1,104 @@
 # HANDOFF - FuncLex 项目交接文档
 
-> 交接时间: 2026-08-08
-> 当前分支: `main` (HEAD: `180dcd5`)
-> 当前阶段: **Phase 1 (MVP 基础框架) - 已完成 ✅**
+> 交接时间: 2026-08-09
+> 当前分支: `main`
+> 当前阶段: **Phase 1 + Phase 2 已完成 ✅**
 
 ---
 
 ## 🎯 项目一句话
 
-基于 Python + PySide6 的**本地桌面词典应用**，能读取 MDX/MDD 格式词典（牛津、朗文、柯林斯、韦氏等），完全离线、快速查询、保留原始 HTML 排版。
+基于 Python + PySide6 的**本地桌面词典应用**，能读取 MDX/MDD 格式词典（牛津、朗文、柯林斯、韦氏等），完全离线、快速查询、保留原始 HTML 排版，支持发音、历史、设置与双视图。
 
 ---
 
-## ✅ Phase 1 已完成（可直接跑）
+## ✅ 已完成（可直接跑）
 
 ### 1.1 跑起来 + 验收
 
 ```bash
-# 1. 进项目
 cd /Users/fiona/Documents/trae_projects/FuncLex
-
-# 2. 装依赖（python-lzo 是 readmdict 的运行时依赖，必须装）
-python3 -m pip install -r requirements.txt
-python3 -m pip install python-lzo    # requirements 已加，部分环境还需手动
-
-# 3. 启动
-python app.py
+# 环境：venv 在工作区外 ~/funlex-venv（见 §坑 11：Trae 会隐藏工作区 venv）
+~/funlex-venv/bin/python -m pip install -r requirements.txt
+~/funlex-venv/bin/python -m pip install python-lzo
+~/funlex-venv/bin/python app.py
 ```
 
-**Phase 1 验收清单**（实测结果）：
-- [x] `pip install -r requirements.txt` 干净环境可装
-- [x] `python app.py` 启动无报错（PySide6 6.11.0 验证）
-- [x] 6 本 MDX 自动加载（牛津 10/9/7 版、Collins COBUILD、Collins Audio、韦氏同义词），共 635,525 词条
-- [x] 启动 ~11s（首次加载所有 MDX），按 entry_count 倒序选择默认词典
-- [x] 搜索 "take" / "happy" / "love" / "a" 都能出 HTML 结果（raw 长度 14k–151k 字节）
-- [x] 搜索 "xyz123" 显示"未找到该单词"友好提示
-- [x] 窗口默认 1100×750，最小 900×600，内容区自适应
-- [x] 回车触发搜索，✕ 清除按钮工作
-- [x] ⌘F / Ctrl+F 聚焦搜索框
+**Phase 2 验收清单**（实测）：
+- [x] 二次启动 **<1s**（实测 0.004s，仅 stat + 指纹校验，不打开 MDX）
+- [x] 首次运行后台构建索引（进度在状态栏），已构建词典即查即用
+- [x] 5 本查询词典共 616,158 词条；Collins Audio 识别为发音资源（不进查询列表）
+- [x] `data/index.db` 564MB（zlib 压缩，格式版本标记自动重建）
+- [x] 结构化解析：`take` → 音标 /teɪk/、pos [verb, noun]、41 习语、23 短语动词
+- [x] `@@@LINK=` 跳转解析（`%` → `per cent`）
+- [x] 词条底部"相关短语动词 / 习语"区块，点击跳转查询
+- [x] 等分视图（按词性 QSplitter 等宽面板）
+- [x] 设置对话框（词典路径/默认词典/视图/历史条数/字号/字体 → config.json）
+- [x] 历史侧边栏（点击回查/右键删除/清空）
+- [x] 🔊 发音（QTextToSpeech 离线；⌘P 快捷键）
+- [x] 已清理误入库的 `__pycache__/*.pyc`
 
-### 1.2 已交付文件
+### 1.2 文件清单
 
 ```
 _func_lex/
-├── app.py                       ✅ 入口（QApplication + excepthook）
+├── app.py                       ✅ 入口（配置加载 + 词典服务 + 主窗口）
 ├── requirements.txt             ✅ PySide6 + readmdict + python-lzo
-├── .gitignore                   ✅ pycache/venv/build
-├── README.md                    ✅ 用户文档
-├── ROADMAP.md                   ✅ 4 阶段路线图
-├── HANDOFF.md                   ✅ 本文件
+├── .gitignore                   ✅ 新增 data/ 与 config.json
+├── README.md / ROADMAP.md / HANDOFF.md
 ├── funlex/
-│   ├── __init__.py              ✅ version 0.1.0
+│   ├── __init__.py              version 0.2.0（待 bump）
 │   ├── core/                    ✅ 纯 Python，无 UI 依赖
-│   │   ├── __init__.py
-│   │   ├── models.py            ✅ 6 个 dataclass（见下）
-│   │   ├── mdx_parser.py        ✅ MdxParser 封装 readmdict
-│   │   └── dictionary.py        ✅ DictionaryService（多词典、内存索引、查询、suggest）
+│   │   ├── models.py            ✅ 数据模型（DictionaryEntry 已含 phonetics/pos/phrases）
+│   │   ├── mdx_parser.py        ✅ 惰性迭代（不物化内容，修复 Phase1 内存根源）
+│   │   ├── indexer.py           ✅ SQLiteIndex（meta/entries/phrases，压缩，跳转解析）
+│   │   ├── dictionary.py        ✅ DictionaryService（扫描/分类/查询/发音资源）
+│   │   ├── parser.py            ✅ EntryParser + extract_phrases
+│   │   ├── history.py           ✅ HistoryStore（SQLite）
+│   │   └── config.py            ✅ ConfigManager（config.json）
 │   └── ui/                      ✅ PySide6
-│       ├── __init__.py
-│       ├── styles.py            ✅ QSS 主题 + EntryView 默认 CSS
-│       ├── search_bar.py        ✅ SearchBar QLineEdit 封装
-│       ├── entry_view.py        ✅ QTextBrowser 子类
-│       └── main_window.py       ✅ QMainWindow 应用
-└── data/                        🔲 空（Phase 2 给 SQLite 用）
-└── dictionaries/                🔲 空（可选放自定义 MDX）
+│       ├── styles.py            QSS + EntryView 默认 CSS
+│       ├── search_bar.py / entry_view.py / main_window.py
+│       ├── entry_view_split.py  等分视图
+│       ├── history_panel.py / settings_dialog.py / pronounce.py / build_worker.py
+├── data/                        🔲 运行时（index.db / history.db，gitignore）
+└── dictionaries/                🔲 可选放自定义 MDX
 ```
 
-### 1.3 核心数据模型（`funlex/core/models.py`）
+### 1.3 Core 关键接口（新增/变更）
 
-全部 `@dataclass`，纯 Python，无依赖：
-- `DictionaryInfo` — 词典元信息（name / path / entry_count / loaded）
-- `DictionaryEntry` — 完整词条（word / raw_content / pos_tags / phrasal_verbs / idioms）
-- `PhraseItem` — 短语/习语（phrase / meaning / kind: phrasal_verb|idiom）
-- `HistoryItem` — 查询历史（word / timestamp / dictionary_name）
-- `NoteItem` — 用户笔记（word / content / created_at / updated_at）
-- `AppConfig` — 应用配置（to_dict / from_dict 序列化）
+```python
+# funlex/core/dictionary.py
+class DictionaryService:
+    def __init__(self, paths=None, data_dir=None)     # data_dir 默认 ./data
+    def scan(self) -> List[DictionaryInfo]            # 快扫：stat + 指纹，不打开 MDX
+    def pending_builds(self) -> List[DictionaryInfo]  # 需构建索引的词典
+    def build_index(self, name, parser=None, progress_cb=None) -> int
+    def list_dictionaries(self)                       # 仅已构建（loaded）词典，entry_count 倒序
+    def lookup(self, word, dict_name=None) -> Optional[DictionaryEntry]  # 命中即结构化解析
+    def suggest(self, prefix, limit=20)
+    def related_phrases(self, word, dict_name=None) -> List[PhraseItem]
+    def has_audio(self, word) -> bool                 # 发音资源词头（懒加载）
+    def total_entries(self) -> int
 
-### 1.4 关键技术决策（已实现）
+# funlex/core/indexer.py
+class SQLiteIndex:
+    def build(parser, dict_name, progress_cb=None) -> int   # 压缩存储 + phrases 反向索引
+    def lookup(word, dict_name) -> Optional[(display, content)]  # 解析 @@@LINK= 链
+    def suggest(prefix, dict_name, limit) -> List[str]
+    def related_phrases(headword, dict_name) -> List[PhraseItem]
+    def is_built(dict_name, file_path) / get_count(dict_name) / mark_audio / is_audio
 
-| 决策 | 选择 | 理由 |
-|------|------|------|
-| UI 框架 | PySide6 6.5+ | 比 PyQt 更宽松许可，Qt 6 现代 API |
-| MDX 解析 | readmdict + python-lzo | 纯 Python，支持 MDX 2.0，社区活跃 |
-| 富文本渲染 | QTextBrowser | MVP 够用，0 额外依赖；Phase 2 可升级到 QWebEngineView |
-| 索引方式 | 全内存 dict | 6 本 ~63 万词条占用 ~1–2GB RAM，启动 11s 可接受 |
-| 词典选择 | 按 entry_count 倒序默认 | 牛津 10 版 31 万条排第一，最完整 |
+# funlex/core/history.py
+class HistoryStore: add / list(limit) / delete / clear / count / set_limit(limit)
+
+# funlex/core/parser.py
+def parse_entry(word, dict_name, html) -> DictionaryEntry
+def extract_phrases(html, headword="") -> List[PhraseItem]
+
+# funlex/core/config.py
+class ConfigManager: load() / save() / update(**kwargs)
+```
 
 ---
 
@@ -92,121 +106,97 @@ _func_lex/
 
 ### 坑 1：readmdict 全部返回 bytes
 ```python
-# 必须 decode，errors='replace' 兜底乱码
 word = raw_k.decode("utf-8", errors="replace")
 content = raw_v.decode("utf-8", errors="replace")
 ```
 
 ### 坑 2：MDX 外链 CSS 加载不到
-QTextBrowser 不会去读取 `<link rel="stylesheet" href="oald10.css">`。  
-解决：`funlex/ui/styles.py` → `ENTRY_DEFAULT_CSS` 注入 fallback 样式，对应牛津常见的 `.headword` / `.phon` / `.pos` / `.phrv` / `.idm` / `.example` 等 class。  
-**接手时如果发现新词典的样式没生效**，加对应 class 的 CSS 规则到 `ENTRY_DEFAULT_CSS`。
+QTextBrowser 不读 `<link rel="stylesheet">`。`funlex/ui/styles.py` 的 `ENTRY_DEFAULT_CSS` 注入 fallback 样式。新词典样式不生效时，往这里加规则。
 
 ### 坑 3：QTextBrowser CSS 限制
-不支持 flex / grid / position: absolute，只能用基础 color / font-size / margin / padding / border-radius。  
-复杂 MDX 排版会有偏差，**MVP 接受**。Phase 2 P2.4 升级 QWebEngineView 再解决。
+不支持 flex/grid/absolute。复杂 MDX 排版有偏差，MVP 接受（Phase 3 可升 QWebEngineView）。
 
 ### 坑 4：python-lzo 是 C 扩展
-- macOS：`pip install python-lzo` 直接 OK
-- Windows：可能需要 Visual C++ Build Tools，备选 `conda install python-lzo`
-- Linux：通常直接 OK，缺 `python-dev` 时装 `python3-dev`
+macOS/Linux 直接 pip；Windows 可能要 Visual C++ Build Tools 或 `conda install python-lzo`。
 
-### 坑 5：当前启动 11s 偏慢
-6 本词典全部加载到内存，首次启动慢。Phase 2 P2.1 引入 SQLite 索引后会快很多，**当前可接受**。
+### 坑 5：**索引格式版本（新）**
+`SQLiteIndex.FORMAT_VERSION`（现为 "2"，zlib 压缩）。**内容压缩方式变更时必须递增版本**，否则旧库被 `_unpack` 误读。构造时检测版本不符会清空 meta 触发全量重建。
 
-### 坑 6：上个 commit 误提交了 pycache
-`525ba4b` 里 `funlex/**/__pycache__/*.pyc` 被加进去了（shell 拦截 `git rm --cached`，未来不及清理）。  
-`__pycache__/` 已在 `.gitignore` 里，但已入库的 .pyc 还在。后续清理：
+### 坑 6：**SQLite 线程模型（新）**
+构建（后台 QThread）与查询（主线程）各自开独立连接（`_connect()`），用 WAL 并发；**不要**跨线程共享同一 connection。
 
-```bash
-find . -name __pycache__ -type d -exec git rm -rf {} +
-git commit -m "chore: remove tracked pycache"
-```
+### 坑 7：**词典分类启发式（新）**
+`_classify()`：前 30 条里 `>80%` 含 `sound://` 且平均内容 <600B → "发音资源"（不进查询列表，词头集供 `has_audio()`）。命名含 Audio 的词典通常命中。
+
+### 坑 8：**结构化解析以牛津为主**
+`parser.py` 的正则按牛津第10版 class（`.pos/.phon/.phons_br/.phons_n_am/.x/.idm/.pvrefs/.xh`）。Collins（`C1_*`、`phrasal_verb_box`）和韦氏（`bword://`）尽力而为；新增词典 class 需扩展正则。`class="x"` 在牛津是例句。
+
+### 坑 9：**Collins 原声不可播（新）**
+Collins Cobuild Audio.mdx 只有 `sound://` 引用，**项目无配套 .mdd**，真实音频无法播放。发音走 QTextToSpeech（离线）。若日后补 .mdd：`funlex/ui/pronounce.py` 切换到 QtMultimedia 播放（已可用），`sound://` 处理在 `main_window._on_anchor_clicked`。
+
+### 坑 10：GUI 无法在无头环境验证
+本环境 `QApplication` 平台插件无法加载（QKeySequence 构造会段错误），UI 只能实机运行验证。Core 层全部可无头测试。
+
+### 坑 11：**Trae 会隐藏工作区 venv（重点）**
+macOS + Trae IDE：Trae 会把工作区内 `.venv`/`venv` 的**文件逐批设置 `hidden` BSD 标志**（实测 `.venv` 内 5697 个文件被隐藏）。
+Qt 的 QDir 用 `getattrlist` 枚举目录，会**跳过 `hidden` 文件** → 平台插件 `libqcocoa.dylib` 找不到 → 报
+`Could not find the Qt platform plugin "cocoa"`，app 崩溃。
+- 特征：`os.listdir` 看得到文件、`ls -lO` 显示 `hidden` 标志、`QDir.entryList()` 返回空
+- **解法：venv 放在工作区之外**（本项目在 `~/funlex-venv`）。`chflags -R nohidden` 只能临时解决，Trae 会重新隐藏。
+- 排查工具：`find venv -flags +hidden | wc -l`、`ls -ldO venv`、`QT_DEBUG_PLUGINS=1 python app.py`
 
 ### 约定 1：分层原则（强制）
-- **Core 层**：纯 Python，**严禁** import PySide6 / 任何 Qt 模块
-- **UI 层**：**只能** import Core 层 API，不允许直接调 readmdict
+Core 层**严禁** import PySide6；UI 层**只能**调 Core 公开 API。
 
 ### 约定 2：信号槽优先
-UI 层调用 Core 用 `Signal` + `Slot`，**不要** 传回调函数。
+UI 调 Core 用 `Signal` + `Slot`，不要传回调。
 
 ### 约定 3：颜色集中
-所有颜色集中在 `funlex/ui/styles.py` 的 `MAIN_QSS` 字符串里，要换主题改这里。
+颜色集中在 `funlex/ui/styles.py` 的 `MAIN_QSS`，换主题改这里。
+
+### 约定 4：index.db / history.db / config.json 不入库
+`.gitignore` 已含 `data/` 与 `config.json`。词典数据文件（`.mdx`）保留入库（已有）。
 
 ---
 
-## 📋 关键接口约定（Core 给 UI 看的）
-
-```python
-# funlex/core/dictionary.py
-class DictionaryService:
-    def __init__(self, paths: Optional[List[str]] = None): ...
-    def scan(self) -> List[DictionaryInfo]: ...
-    def load_dictionary(self, file_path: str) -> Optional[DictionaryInfo]: ...
-    def list_dictionaries(self) -> List[DictionaryInfo]: ...   # 按 entry_count 倒序
-    def first_dictionary(self) -> Optional[DictionaryInfo]: ...
-    def lookup(self, word: str, dictionary_name: Optional[str] = None) -> Optional[DictionaryEntry]: ...
-    def suggest(self, prefix: str, limit: int = 20) -> List[Tuple[str, str]]: ...
-    def total_entries(self) -> int: ...
-```
-
-```python
-# funlex/core/mdx_parser.py
-class MdxParser:
-    def __init__(self, file_path: str): ...
-    def get_info(self) -> DictionaryInfo: ...
-    def get_entry_count(self) -> int: ...
-    def iter_entries(self) -> Iterator[Tuple[str, str]]: ...  # yield (word, raw_html)
-    def lookup(self, word: str) -> Optional[str]: ...        # 精确查找
-```
-
----
-
-## 🟡 Phase 1 已知遗留 / 可选优化
+## 🟡 已知遗留 / 可选优化
 
 | # | 类型 | 描述 | 工作量 |
 |---|------|------|--------|
-| 1 | 清理 | 移除已被 track 的 `__pycache__/*.pyc` | 5 min |
-| 2 | 体验 | SearchBar 加 suggest 弹窗（目前只在状态栏显示匹配数） | 中 |
-| 3 | 体验 | ⌘L 选中单词自动查询 | 小 |
-| 4 | 体验 | 记住窗口位置 / 大小到 config.json | 小 |
-| 5 | 性能 | 首启动 11s 加载所有 MDX（Phase 2 引入 SQLite 才能根治） | Phase 2 |
-| 6 | 错误 | MDX 加载失败时弹 QMessageBox（目前只 print） | 小 |
+| 1 | 体验 | `README 2.md`（项目根，中文版特性草稿，含未实现的"笔记"）待整合/删除 | 小 |
+| 2 | 解析 | 多词典 class 全覆盖（Collins/韦氏结构化） | 中 |
+| 3 | 发音 | 接入配套 `.mdd` 后播放真实 Collins 原声 | 小 |
+| 4 | 性能 | 首构建约 1 分钟（一次性）；可加"仅构建常用词典"选项 | 中 |
+| 5 | 体验 | SearchBar 加 suggest 弹出补全（目前只状态栏提示） | 中 |
+| 6 | 功能 | `related_phrases()` 已暴露，UI 暂用 entry 字段（parse 结果），可直接切换 | 小 |
 
 ---
 
-## 🚀 下一步（Phase 2 路线，按优先级排）
+## 🚀 下一步（Phase 3 路线）
 
-完整任务清单见 `ROADMAP.md` Phase 2 章节，这里按优先级给接手者建议：
-
-1. **P2.1** SQLite 索引（替代内存 dict，加速启动 + 节省内存）
-2. **P2.5** Settings 对话框 + config.json 读写（先把 settings 落地点打通）
-3. **P2.6** 查询历史（侧边栏 + SQLite 持久化，数据模型已就绪）
-4. **P2.2** 词条结构化解析（从 HTML 提取 POS / 例句 / 习语）
-5. **P2.3** Phrasal Verb / Idiom 关联搜索
-6. **P2.4** 等分视图（按 POS 拆分 QSplitter）
-
-**建议接手顺序**：先做 P2.5 settings（UI 改动小，立刻有成就感），再 P2.6 历史（数据模型已有），最后 P2.1 SQLite（性能提升，Phase 1 启动慢的根治方案）。
+完整清单见 `ROADMAP.md`。建议顺序：
+1. **P3.1/P3.2 笔记**（models 已有 `NoteItem`，SQLite 持久化 + 词条页编辑器）
+2. **P3.5 深色主题**（styles.py 颜色集中，最易）
+3. **P3.3 搜索自动补全/模糊**（SQLite FTS5 或前缀索引）
+4. **P3.6 多词典合并查询**
+5. **P3.4 历史侧边栏 UI 增强**（分组、搜索）
 
 ---
 
 ## 📞 联系人 / 上下文
 
-- 原作者 commits: `800d10f` (initial) → `7646222` (MDX) → `525ba4b` (Phase 1 完成) → `180dcd5` (README 更新)
-- 项目 README: `README.md` — 用户视角（安装、运行、配置）
-- 路线图: `ROADMAP.md` — 4 阶段 roadmap + 关键技术决策
+- 项目 README: `README.md` — 用户视角
+- 路线图: `ROADMAP.md` — 4 阶段 roadmap + 关键决策
 - 本文件: 接手必读 + 坑 + 接口约定
 
 ---
 
 ## ✅ 接手 checklist
 
-接手时按这个顺序验证：
-
-- [ ] 看 README.md 跑一遍 `python app.py`，确认能搜索
-- [ ] 读本文件 §"坑"  章节，了解 6 个已知坑
-- [ ] 看 `funlex/core/dictionary.py` 10 行 `lookup()` 理解查询逻辑
-- [ ] 看 `funlex/ui/main_window.py` 理解信号槽连接
-- [ ] 跑 `python -m py_compile app.py funlex/**/*.py` 确认环境 OK
-- [ ] 清理 pycache（见 §坑 6）
-- [ ] 在 ROADMAP.md Phase 2 选一个任务开始
+- [ ] `python app.py` 跑一遍：搜索 `take`，看默认视图 + 🔊 发音
+- [ ] 视图菜单切换等分视图，观察按词性分块
+- [ ] 设置里改字号/默认词典，确认 config.json 生成
+- [ ] 查几个词后开历史侧边栏，点击回查
+- [ ] 读本文件 §"坑" 10 条
+- [ ] `python -m py_compile app.py funlex/**/*.py` 确认环境 OK
+- [ ] 在 ROADMAP.md Phase 3 选一个任务开始

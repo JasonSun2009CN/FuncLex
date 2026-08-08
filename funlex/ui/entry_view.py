@@ -5,7 +5,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QTextBrowser
 
-from .styles import get_entry_default_css
+from .styles import get_entry_default_css, sanitize_html
 
 
 class EntryView(QTextBrowser):
@@ -43,8 +43,8 @@ class EntryView(QTextBrowser):
         if not html:
             self.show_not_found(word)
             return
-        # 用 <body> 包裹，让 setHtml 完整渲染
-        # 注意：setDefaultStyleSheet 已注入 <style>，这里不要再嵌
+        # 剥离 <link>/<script>（QTextDocument 遇开头 <link> 会丢文档），再包裹渲染
+        html = sanitize_html(html)
         wrapped = f"<body>{html}</body>"
         self.setHtml(wrapped)
 
