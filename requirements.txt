@@ -1,0 +1,5 @@
+PySide6>=6.5.0
+readmdict>=0.1.1
+# readmdict 运行时依赖，用于解压 MDX 内容
+# Windows 用户若 pip install 失败可改用: conda install python-lzo
+python-lzo>=1.14
