@@ -16,6 +16,7 @@ from .indexer import SQLiteIndex
 from .mdx_parser import MdxParser
 from .models import DictionaryEntry, DictionaryInfo, PhraseItem
 from .parser import parse_entry
+from .paths import default_data_dir, default_dictionary_dirs
 
 _AUDIO_SAMPLE = 30
 _AUDIO_SOUND_RATIO = 0.8
@@ -30,7 +31,7 @@ class DictionaryService:
         paths: Optional[List[str]] = None,
         data_dir: Optional[str] = None,
     ) -> None:
-        self.data_dir = data_dir or os.path.join(os.getcwd(), "data")
+        self.data_dir = data_dir or default_data_dir()
         self._index = SQLiteIndex(os.path.join(self.data_dir, "index.db"))
         # 查询词典元信息：{name: DictionaryInfo}
         self._infos: Dict[str, DictionaryInfo] = {}
@@ -50,8 +51,8 @@ class DictionaryService:
 
     # ---------- 路径扫描 ----------
     def _default_paths(self) -> List[str]:
-        cwd = os.getcwd()
-        return [cwd, os.path.join(cwd, "dictionaries")]
+        # 打包后为 用户数据目录/dictionaries；开发为 项目根 + dictionaries/（见 paths.py）
+        return default_dictionary_dirs()
 
     def _iter_mdx_files(self) -> List[str]:
         seen: Dict[str, str] = {}

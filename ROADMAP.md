@@ -7,11 +7,13 @@ FuncLex 是一个基于 Python + PySide6 的本地桌面词典应用，支持读
 ## 当前状态
 
 **Phase 1 (MVP 基础框架) 已完成 ✅** — commit `525ba4b`
-**Phase 2 (核心功能增强) 已完成 ✅** — commit 待定
+**Phase 2 (核心功能增强) 已完成 ✅**
+**Phase 3 (体验优化) 已完成 ✅** — 笔记 / 搜索补全 / 历史增强 / 深色主题 / 加载·错误提示
 
 - 5 本真实词典 + 1 个发音资源，共 616,158 词条
 - SQLite 索引 + zlib 压缩，**二次启动 <1s**，内存占用大幅下降
 - 设置 / 历史 / 结构化解析 / 习语关联 / **多词典合并显示** / 发音 全部落地
+- 用户笔记、补全弹窗、日期分组历史、深色主题、构建进度与错误反馈
 
 ***
 
@@ -118,7 +120,7 @@ FunLex/
 
 ***
 
-## Phase 3: 体验优化 🔲 待启动
+## Phase 3: 体验优化 ✅ 已完成
 
 ### 目标
 
@@ -149,13 +151,15 @@ FunLex/
 
 ***
 
-## Phase 4: 发布准备 🔲 待启动
+## Phase 4: 发布准备 🔲 进行中
 
 - [ ] P4.1 全面测试（边界情况、大型词典性能）
 - [ ] P4.2 异常处理与日志系统
-- [ ] P4.3 macOS 打包（PyInstaller）
-- [ ] P4.4 Windows 打包（PyInstaller）
+- [ ] P4.3 macOS 打包（PyInstaller）🟡 脚手架就绪：`packaging/build_mac.sh` + CI，已在本机验证 **Intel 版**可构建可运行；Apple Silicon 版待 arm64 环境（CI macos-14）；正式 icon 就绪后重打
+- [ ] P4.4 Windows 打包（PyInstaller）🟡 `packaging/build_windows.bat` + CI 就绪，待 Windows 实机/CI 验证
 - [ ] P4.5 最终文档完善
+
+> 打包前提已落地：**用户数据目录策略**（`funlex/core/paths.py`，frozen 时落到平台用户目录，已验证打包版自动创建 `~/Library/Application Support/FuncLex/`）。
 
 ***
 

@@ -10,6 +10,7 @@ import os
 from typing import Optional
 
 from .models import AppConfig
+from .paths import default_config_path
 
 DEFAULT_CONFIG_FILENAME = "config.json"
 
@@ -22,7 +23,8 @@ class ConfigManager:
     """
 
     def __init__(self, path: Optional[str] = None) -> None:
-        self.path = path or os.path.join(os.getcwd(), DEFAULT_CONFIG_FILENAME)
+        # 默认路径：打包后为平台用户目录，开发为项目根（见 paths.py）
+        self.path = path or default_config_path()
         self.config: AppConfig = self.load()
 
     # ---------- 读写 ----------

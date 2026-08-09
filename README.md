@@ -161,11 +161,25 @@ FuncLex/
 
 ---
 
+## 📦 打包发布（Phase 4 准备中）
+
+用 **PyInstaller（onedir）** 打包 4 个版本：Mac Intel / Mac Apple Silicon / Windows / Linux。
+脚本与文档在 `packaging/`（`build_mac.sh` / `build_windows.bat` / `build_linux.sh` + GitHub Actions 一键矩阵构建）。
+
+**打包后的数据目录**（首次运行自动创建，不依赖启动目录）：
+- macOS: `~/Library/Application Support/FuncLex/`（词典放 `…/dictionaries/`）
+- Windows: `%APPDATA%\FuncLex\`
+- Linux: `~/.local/share/FuncLex/`
+
+详见 [packaging/README.md](./packaging/README.md)。
+
+---
+
 ## 🛠️ 开发计划
 
 详细开发计划请参考 [ROADMAP.md](./ROADMAP.md)。
 
-当前状态：**Phase 1 + Phase 2 已完成 ✅**，下一步进入 Phase 3（笔记、搜索补全、主题切换）。
+当前状态：**Phase 1 + Phase 2 已完成 ✅**，**Phase 3 已完成 ✅**（笔记、搜索补全、历史增强、深色主题、加载/错误提示），下一步 Phase 4（打包/测试/日志）。
 
 ---
 

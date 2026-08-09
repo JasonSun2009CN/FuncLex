@@ -62,7 +62,16 @@ _func_lex/
 │   │   ├── parser.py            ✅ EntryParser + extract_phrases + extract_audio_refs
 │   │   ├── history.py           ✅ HistoryStore（SQLite）
 │   │   ├── notes.py             ✅ NotesStore（P3.1：每词一条笔记，SQLite）
+│   │   ├── paths.py             ✅ 路径策略（P4 前置：frozen 时数据/配置/词典落到平台用户目录）
 │   │   └── config.py            ✅ ConfigManager（config.json）
+├── packaging/                   ✅ 打包脚手架（P4 前置）
+│   ├── build_mac.sh             ✅ Mac Intel/arm（含 xattr/签名/版本处理）
+│   ├── build_windows.bat        ✅ Windows
+│   ├── build_linux.sh           ✅ Linux
+│   ├── make_icons.py            ✅ 源图 → icon.icns/ico/png（占位已生成，正式图替换 icon.png 重跑）
+│   ├── assets/icon.png          ✅ 占位图标（设计好正式 icon 后替换）
+│   └── README.md                ✅ 打包指南（4 版本/数据目录/签名/架构坑）
+└── .github/workflows/build.yml  ✅ CI 一键构建 4 版本（macos-13 Intel / macos-14 arm / win / linux）
 │   └── ui/                      ✅ PySide6
 │       ├── styles.py            QSS + EntryView 默认 CSS + 主题（浅色/深色 token，DARK_QSS 叠加）
 │       ├── search_bar.py        ✅ 搜索框：防抖 + 补全弹窗（SuggestionLineEdit 方向键/Esc，回车走 returnPressed）
@@ -183,6 +192,19 @@ Qt 的 QDir 用 `getattrlist` 枚举目录，会**跳过 `hidden` 文件** → �
 
 浅色 = `MAIN_QSS` 原样；深色 = 其后追加 `DARK_QSS`（同选择器等优先级后者胜）。**新增控件的浅色样式后，必须同步在 `DARK_QSS` 补一条深色覆盖**，否则深色下该控件保持浅色（反色 bug）。词条 HTML（QTextBrowser 内）走 `ENTRY_CSS_TPL` + 两套 token（`_ENTRY_PALETTES`），新增颜色规则需加 token 并双主题填值。占位/未找到页配色在 `entry_view._state_colors()`。
 
+### 坑 13：**打包后路径不依赖 CWD（新）**
+
+`funlex/core/paths.py` 区分 frozen（PyInstaller）与源码运行：
+- frozen → 数据/配置/词典在平台用户目录（mac `~/Library/Application Support/FuncLex/`、win `%APPDATA%/FuncLex/`、linux `~/.local/share/FuncLex/`）
+- 源码 → 沿用项目根（行为不变）
+已实测：打包版首启自动创建 `…/FuncLex/{data,dictionaries}` 并初始化 SQLite。改路径逻辑只动 `paths.py`，ConfigManager/DictionaryService 已接入。
+
+### 坑 14：**mac 打包的两个坑（新）**
+
+1. **架构跟 Python 走**：PyInstaller 打出的版本=所用 Python 架构。本开发机是 Intel（x86_64），本地只能打 Intel 版；Apple Silicon 版需 arm64 Python 或 CI `macos-14` runner。
+2. **新 macOS 的 `com.apple.provenance` 阻止 codesign**：系统托管属性、`xattr -d` 删不掉（删了立刻加回），codesign 报 `resource fork... not allowed`，ad-hoc 签名做不了。**未签名 app 可正常运行**（首次打开右键→打开）。脚本已尽力签名、失败则移除签名。
+3. **`.svg` 等数据文件需 `--add-data`**：PyInstaller 不自动收集非模块文件（发音按钮 speaker.svg 曾缺失），三个 build 脚本 + CI 均已带 `--add-data "funlex/ui/assets:..."`（Windows 用 `;`）。
+
 ### 约定 1：分层原则（强制）
 Core 层**严禁** import PySide6；UI 层**只能**调 Core 公开 API。
 
@@ -221,6 +243,11 @@ UI 调 Core 用 `Signal` + `Slot`，不要传回调。
 5. ~~P3.4 历史侧边栏 UI 增强~~ ✅ 已完成（日期分组 + 搜索过滤 + 清空确认）
 
 **Phase 3 仅剩**：P3.8 复杂 MDX 排版升级 QWebEngineView（可选，改动大；当前 QTextBrowser 方案已满足日常使用）。
+
+**Phase 4（打包进行中）**：
+- 打包前置已落地：`paths.py` 用户数据目录 + `packaging/` 脚手架 + CI + 占位 icon；Mac Intel 版已本地验证构建/运行
+- **待办**：① 用户设计正式 icon → 替换 `packaging/assets/icon.png` 重跑 make_icons.py；② 重打 Mac Intel；③ arm64 环境打 Apple Silicon；④ Windows/Linux 实机或 CI 验证；⑤ P4.1 测试 / P4.2 日志系统
+- 本机（Intel Mac）：`./packaging/build_mac.sh arm` 实际产出 x86_64；打 ARM 版用 CI `macos-14`
 
 ---
 

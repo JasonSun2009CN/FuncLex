@@ -7,6 +7,11 @@ venv/
 *.egg-info/
 build/
 dist/
+*.spec
 # 运行时数据（SQLite 索引 / 历史 / 用户配置）
 data/
 config.json
+# 打包生成的图标（源图 packaging/assets/icon.png 保留入库）
+packaging/assets/icon.icns
+packaging/assets/icon.ico
+packaging/assets/icon-linux.png

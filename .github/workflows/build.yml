@@ -1,0 +1,71 @@
+# 一键构建 4 个版本（Mac Intel / Mac Apple Silicon / Windows / Linux）
+# 用法: GitHub 仓库 → Actions → "Build FuncLex" → Run workflow
+name: Build FuncLex
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-13            # x86_64 (Intel)
+            label: mac-intel
+            icon: packaging/assets/icon.icns
+            extra: --osx-bundle-identifier com.funlex.app
+          - os: macos-14            # arm64 (Apple Silicon)
+            label: mac-arm
+            icon: packaging/assets/icon.icns
+            extra: --osx-bundle-identifier com.funlex.app
+          - os: windows-latest
+            label: windows
+            icon: packaging/assets/icon.ico
+            extra: ""
+          - os: ubuntu-latest
+            label: linux
+            icon: ""
+            extra: ""
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt python-lzo pyinstaller pillow
+
+      - name: 生成图标
+        run: python packaging/make_icons.py packaging/assets/icon.png packaging/assets
+        shell: bash
+
+      - name: PyInstaller 构建
+        shell: bash
+        run: |
+          ICON=""
+          [ -n "${{ matrix.icon }}" ] && ICON="--icon ${{ matrix.icon }}"
+          # --add-data 分隔符随平台：Windows 用 ;，其余用 :
+          SEP=":"
+          [ "$RUNNER_OS" = "Windows" ] && SEP=";"
+          python -m PyInstaller --noconfirm --clean --onedir --windowed \
+            --name FuncLex \
+            --paths . \
+            --hidden-import lzo \
+            --add-data "funlex/ui/assets${SEP}funlex/ui/assets" \
+            --exclude-module PySide6.QtWebEngineCore \
+            --exclude-module PySide6.QtWebEngineWidgets \
+            $ICON \
+            ${{ matrix.extra }} \
+            app.py
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: FuncLex-${{ matrix.label }}
+          path: dist/
+          if-no-files-found: error
