@@ -94,21 +94,34 @@ jobs:
       - name: 安装 Python 依赖
         shell: bash
         run: |
+          # 关键：python-lzo 在 macOS arm64 无 wheel 且源码编译在 universal2 Python 上会失败，
+          # 必须把它从 requirements 里拆出来单独处理，否则 -r requirements 这一步直接挂掉。
           python -m pip install --upgrade pip
-          pip install -r requirements.txt pillow pyinstaller
-          if ! pip install python-lzo; then
-            echo "::warning::python-lzo 无匹配 wheel，从源码编译"
+          grep -v "^python-lzo" requirements.txt > .req-core.txt
+          python -m pip install -r .req-core.txt pillow pyinstaller
+          rm -f .req-core.txt
+          if ! python -m pip install python-lzo; then
+            echo "::warning::python-lzo 无预编译 wheel，尝试源码编译"
             if [ "$RUNNER_OS" = "Linux" ]; then
               sudo apt-get install -y liblzo2-dev
+              python -m pip install python-lzo
             elif [ "$RUNNER_OS" = "macOS" ]; then
+              # 第一层：ARCHFLAGS 固定单架构 + 显式指向 brew 的 lzo 头文件/库
               brew install lzo
-              # mac arm64 无 python-lzo wheel；universal2 Python 默认按双架构编译，
-              # 用 ARCHFLAGS 固定为本机单架构 + 显式指向 brew 的 lzo 头文件/库
               export ARCHFLAGS="-arch $(uname -m)"
               export CFLAGS="-I$(brew --prefix lzo)/include ${CFLAGS:-}"
               export LDFLAGS="-L$(brew --prefix lzo)/lib ${LDFLAGS:-}"
+              if ! python -m pip install python-lzo; then
+                # 第二层：仍失败（双架构编译绕不开）→ 用 Homebrew 原生 arm64 Python 编 arm64 wheel
+                echo "::warning::ARCHFLAGS 编译仍失败，改用 Homebrew arm64 Python 编译 wheel"
+                brew install python@3.11
+                BPY="/opt/homebrew/opt/python@3.11/bin/python3.11"
+                "$BPY" -m pip install --quiet --upgrade pip setuptools wheel
+                mkdir -p /tmp/lzo-wheel
+                "$BPY" -m pip wheel --no-deps --no-cache-dir python-lzo -w /tmp/lzo-wheel
+                python -m pip install /tmp/lzo-wheel/python_lzo*.whl
+              fi
             fi
-            pip install python-lzo
           fi
 
       # 正式图标源图 packaging/assets/icon.png（已入库），生成三平台图标。
