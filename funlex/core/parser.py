@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import html as html_lib
 import re
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from .models import DictionaryEntry, PhraseItem
 
@@ -36,6 +36,27 @@ _PHON_INNER_RE = re.compile(r'<span class="phon"[^>]*>(.*?)</span>', re.S | re.I
 
 _POS_RE = re.compile(r'<span class="pos"[^>]*>(.*?)</span>', re.S | re.I)
 _HEADWORD_RE = re.compile(r'<h1 class="headword"[^>]*>(.*?)</h1>', re.S | re.I)
+
+# 发音引用：sound://take__gb_1.mp3（牛津 10 版格式）
+_AUDIO_RE = re.compile(r'sound://([^"<>\s]+)', re.I)
+
+
+def extract_audio_refs(html: str) -> List[Tuple[str, str]]:
+    """从词条 HTML 提取发音引用，返回 [(音频key, 变体), ...]。
+
+    变体由文件名推断：`__gb_` → 'gb'（英音），`__us_` → 'us'（美音），否则 ''。
+    去重保序。
+    """
+    out: List[Tuple[str, str]] = []
+    seen = set()
+    for m in _AUDIO_RE.finditer(html):
+        key = m.group(1)
+        if key in seen:
+            continue
+        seen.add(key)
+        v = "gb" if "__gb_" in key else ("us" if "__us_" in key else "")
+        out.append((key, v))
+    return out
 # 例句：牛津 .x / 通用 .example / .examples
 _EXAMPLE_RE = re.compile(
     r'<(?:span|a) class="(?:example|examples|x)"[^>]*>(.*?)</(?:span|a)>', re.S | re.I

@@ -23,10 +23,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from funlex.core.audio import MddAudioIndex
 from funlex.core.config import ConfigManager
 from funlex.core.dictionary import DictionaryService
 from funlex.core.history import HistoryStore
 from funlex.core.models import DictionaryEntry, PhraseItem
+from funlex.core.parser import extract_audio_refs
 
 from .build_worker import IndexBuildWorker
 from .entry_view import EntryView
@@ -77,6 +79,20 @@ class MainWindow(QMainWindow):
 
         # 注入合并显示顺序
         self.service.set_dictionary_order(self.config.dictionary_order)
+
+        # 检测配套 .mdd 音频资源：存在则优先真实发音
+        self._load_audio_index()
+
+    def _load_audio_index(self) -> None:
+        """查找 .mdd 并挂到发音助手；无则发音回退 TTS（并明确标注）"""
+        try:
+            mdd = self.service.find_audio_mdd()
+            if mdd:
+                index = MddAudioIndex(mdd)
+                self.pronounce.set_audio_index(index)
+                print(f"[FuncLex] 检测到音频资源：{mdd}（将优先播放原声）")
+        except Exception as e:
+            print(f"[FuncLex] 加载音频资源失败（回退 TTS）：{e}")
 
         self.setWindowTitle("FuncLex")
         self.resize(1100, 750)
@@ -269,11 +285,12 @@ class MainWindow(QMainWindow):
         self._render_merged(entries)
         self.status.showMessage(f"已找到 {len(entries)} 本词典：{self._current_word}")
 
-        # 发音按钮
+        # 发音按钮：标注发音来源（牛津原声 / TTS 合成）
         self.pronounce_btn.setEnabled(True)
-        tip = "朗读当前词（⌘P）"
-        if self.service.has_audio(self._current_word):
-            tip += " · 有 Collins 原声"
+        if self.pronounce.has_audio(self._current_word):
+            tip = "朗读当前词（⌘P）· 牛津原声"
+        else:
+            tip = "朗读当前词（⌘P）· TTS 合成（非牛津原声）"
         self.pronounce_btn.setToolTip(tip)
 
         # 历史记录
@@ -328,7 +345,9 @@ class MainWindow(QMainWindow):
             self._on_search(s[len("bword://"):])
             return
         if s.startswith("sound://"):
-            self.status.showMessage("原声需要配套 .mdd 音频资源，暂不可播放")
+            key = s[len("sound://"):]
+            self.pronounce.play_key(key, fallback_word=self._current_word)
+            self.status.showMessage(f"发音：{self.pronounce.source_label()}")
             return
         if "://" in s or s.startswith("#"):
             return  # entry://、锚点等其他链接忽略
@@ -337,7 +356,8 @@ class MainWindow(QMainWindow):
 
     def _on_pronounce(self) -> None:
         if self._current_word:
-            self.pronounce.speak(self._current_word)
+            self.pronounce.speak(self._current_word, variant="gb")
+            self.status.showMessage(f"发音：{self.pronounce.source_label()}")
 
     def _on_text_changed_debounced(self, text: str) -> None:
         if len(text.strip()) < 2:

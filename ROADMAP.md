@@ -13,23 +13,23 @@ FuncLex 是一个基于 Python + PySide6 的本地桌面词典应用，支持读
 - SQLite 索引 + zlib 压缩，**二次启动 <1s**，内存占用大幅下降
 - 设置 / 历史 / 结构化解析 / 习语关联 / **多词典合并显示** / 发音 全部落地
 
----
+***
 
 ## 技术栈
 
-| 类别 | 选型 | 备注 |
-|------|------|------|
-| 语言 | Python 3.9+ | |
-| UI 框架 | PySide6 (Qt 6) | 6.5+ 已验证 6.11.1 |
-| MDX 解析 | readmdict | 需 python-lzo 运行时 |
-| 索引 | SQLite (标准库) + zlib | `data/index.db`，内容压缩存储 |
-| 富文本渲染 | QTextBrowser | 合并视图每词典一个 QTextBrowser |
-| 发音 | QTextToSpeech | 系统离线 TTS；QtMultimedia 备接 .mdd |
-| 配置 | `config.json` | 项目根目录，标准库 |
-| 历史 | SQLite | `data/history.db` |
-| 包管理 | pip / requirements.txt | |
+| 类别     | 选型                     | 备注                            |
+| ------ | ---------------------- | ----------------------------- |
+| 语言     | Python 3.9+            | <br />                        |
+| UI 框架  | PySide6 (Qt 6)         | 6.5+ 已验证 6.11.1               |
+| MDX 解析 | readmdict              | 需 python-lzo 运行时              |
+| 索引     | SQLite (标准库) + zlib    | `data/index.db`，内容压缩存储        |
+| 富文本渲染  | QTextBrowser           | 合并视图每词典一个 QTextBrowser        |
+| 发音     | QTextToSpeech          | 系统离线 TTS；QtMultimedia 备接 .mdd |
+| 配置     | `config.json`          | 项目根目录，标准库                     |
+| 历史     | SQLite                 | `data/history.db`             |
+| 包管理    | pip / requirements.txt | <br />                        |
 
----
+***
 
 ## 架构设计
 
@@ -61,7 +61,7 @@ FunLex/
 └── dictionaries/             # 默认词典目录
 ```
 
----
+***
 
 ## Phase 1: MVP 基础框架 ✅ 已完成
 
@@ -74,14 +74,16 @@ FunLex/
 - [x] P1.7 应用入口 (`app.py`)
 - [x] P1.8 MVP 联调与基本测试
 
----
+***
 
 ## Phase 2: 核心功能增强 ✅ 已完成
 
 ### 目标
+
 根治启动慢（SQLite 索引）、补齐设置/历史/结构化解析/习语关联/多词典合并显示，并新增发音功能。
 
 ### 任务清单
+
 - [x] P2.1 SQLite 本地索引（替代内存 dict，二次启动 <1s）
   - `data/index.db`：`entries` 表 PK(dict, word) WITHOUT ROWID，zlib 压缩内容
   - 指纹（size+mtime）免重建；`@@@LINK=` 跳转解析（深度≤6）
@@ -100,6 +102,7 @@ FunLex/
   - Collins Cobuild Audio.mdx 内容启发式识别为"发音资源"（不进查询列表），`has_audio()` 标记原声词头
 
 ### 验收标准（实测）
+
 1. ✅ 启动 < 2s（实测二次启动 <1s，仅 stat + 指纹校验）
 2. ✅ 词典路径、默认词典、视图模式可配置（config.json + 设置对话框）
 3. ✅ 历史记录可点击回查
@@ -108,18 +111,21 @@ FunLex/
 6. ✅ 发音按钮可朗读；audio 词典正确分类为发音资源
 
 ### 遗留
-- 结构化解析主要针对牛津系 class（Collins/韦氏尽力而为）；多词典 class 全覆盖留待 Phase 3
-- Collins 真实音频需配套 `.mdd` 才能播放（当前 TTS 覆盖）
-- 启动后首次构建索引约 1.5 分钟（一次性）
 
----
+- 结构化解析主要针对牛津系 class（Collins/韦氏尽力而为）；多词典 class 全覆盖留待 Phase 3
+- 真实发音需配套 `.mdd` 音频资源（无则 TTS 合成并标注）；`.mdd` 需自行从论坛/网盘获取
+- 启动后首次构建索引约 1 分钟（一次性）
+
+***
 
 ## Phase 3: 体验优化 🔲 待启动
 
 ### 目标
+
 完善用户笔记功能、搜索补全、UI 主题。
 
 ### 任务清单
+
 - [ ] P3.1 用户笔记模块（CRUD + SQLite 持久化）
 - [ ] P3.2 笔记编辑器 UI（嵌入词条页）
 - [ ] P3.3 搜索自动补全 / 模糊匹配
@@ -127,9 +133,9 @@ FunLex/
 - [ ] P3.5 现代 QSS 样式主题（深色 / 浅色切换）
 - [x] P3.6 多词典合并查询（每词典可折叠卡片 + 设置中调整顺序 + 折叠偏好持久化）
 - [ ] P3.7 加载状态与错误提示优化
-- [ ] P3.8 复杂 MDX 排版升级 QWebEngineView（可选）
+- [ ] P3.8 复杂 MDX 排版升级 QWebEngineView
 
----
+***
 
 ## Phase 4: 发布准备 🔲 待启动
 
@@ -139,14 +145,16 @@ FunLex/
 - [ ] P4.4 Windows 打包（PyInstaller）
 - [ ] P4.5 最终文档完善
 
----
+***
 
 ## 关键设计决策
 
 ### 1. MDX 解析库选择
+
 **选型**: `readmdict`（纯 Python，支持 MDX 2.0，社区活跃）。
 
 ### 2. 索引策略
+
 - **Phase 1** ✅：内存 dict 全量加载（启动 11s、1–2GB RAM）→ 已弃用
 - **Phase 2** ✅：SQLite `data/index.db`，构建一次、终身读取
   - `entries(dict, word, display, content)` PK(dict,word) WITHOUT ROWID，前缀查询走 PK 范围扫描
@@ -155,27 +163,33 @@ FunLex/
   - 构建在后台线程，进度显示于状态栏，已构建词典即查即用
 
 ### 3. 多词典合并显示（取代等分视图）
+
 - 查词时 `lookup_all()` 返回所有命中词典词条，按显示顺序堆叠
 - 每本词典一张可折叠玻璃卡片（`entry_view_merged.py`），折叠偏好存 `config.collapsed_dictionaries`
 - 显示顺序存 `config.dictionary_order`，设置中上移/下移调整
 - 相关短语/习语聚合去重后显示在底部一张卡片
 
 ### 4. Phrasal Verb / Idiom 关联
+
 - 构建期 `extract_phrases()` 从 `.idm/.phrv/.pvrefs/.xh` 抽取，写入 `phrases(phrase, headword, dict, kind)`
 - 词条页底部渲染相关短语，点击以短语为词头重新查询
 
 ### 5. 发音功能
-- QTextToSpeech 系统离线 TTS（macOS/Windows/Linux 原生支持）
+
+- **真实音频优先**：`core/audio.py` 的 `MddAudioIndex` 定向提取 `.mdd` 音频字节（同 readmdict 记录格式，已在 mdx 验证）；检测到 `.mdd` 时自动优先播放牛津原声（英/美音，`sound://` 与 🔊 按钮均可）
+- **TTS 回退 + 标注**：无 `.mdd` 时回退系统 TTS（QTextToSpeech，macOS/Windows/Linux 原生），并在 UI 明确标注"TTS 合成（非牛津原声）"（悬浮提示 + 状态栏）
+- **英/美音选择**：TTS 自动选 en_GB/en_US 声音；真实音频按 `__gb_`/`__us_` 变体匹配
 - Collins Audio.mdx 内容启发式分类（`>80% sound://` 且平均 <600B）为发音资源，词头集供 `has_audio()`
-- 真实 Collins 音频需配套 `.mdd`（QtMultimedia 已可用，见 HANDOFF）
 
 ### 6. 配置管理
+
 - `config.json`（项目根），`ConfigManager` 读写，字段校验兜底
 
 ### 7. UI 框架
+
 - QTextBrowser（0 额外依赖）；复杂排版可升级 QWebEngineView（Phase 3 可选）
 
----
+***
 
 ## 提交历史
 
@@ -185,3 +199,4 @@ ba61595 docs: refresh README/ROADMAP/HANDOFF for Phase 1 complete + handoff
 7646222 .mdx file being added
 800d10f Initial commit
 ```
+

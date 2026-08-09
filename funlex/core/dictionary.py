@@ -65,6 +65,21 @@ class DictionaryService:
                     seen[os.path.abspath(f)] = f
         return list(seen.values())
 
+    def find_audio_mdd(self) -> Optional[str]:
+        """在配置路径中查找配套的 .mdd 音频资源文件（如 oald10.mdd）。
+
+        存在则优先用真实发音；否则发音回退 TTS。
+        """
+        for p in self._configured_paths:
+            if not p:
+                continue
+            if os.path.isfile(p) and p.lower().endswith(".mdd"):
+                return p
+            if os.path.isdir(p):
+                for f in glob.glob(os.path.join(p, "*.mdd")):
+                    return f
+        return None
+
     # ---------- 分类 ----------
     def _classify(self, parser: MdxParser) -> str:
         """内容启发式：多数词条是 sound:// 链接且内容很短 → 'audio'，否则 'query'"""

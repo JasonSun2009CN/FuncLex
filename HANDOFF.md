@@ -8,7 +8,7 @@
 
 ## 🎯 项目一句话
 
-基于 Python + PySide6 的**本地桌面词典应用**，能读取 MDX/MDD 格式词典（牛津、朗文、柯林斯、韦氏等），完全离线、快速查询、保留原始 HTML 排版，支持发音、历史、设置与双视图。
+基于 Python + PySide6 的**本地桌面词典应用**，能读取 MDX/MDD 格式词典（牛津、朗文、柯林斯、韦氏等），完全离线、快速查询、保留原始 HTML 排版，支持多词典合并显示、发音、历史与设置。
 
 ---
 
@@ -35,7 +35,7 @@ cd /Users/fiona/Documents/trae_projects/FuncLex
 - [x] 多词典合并显示（每词典可折叠卡片 + 设置调整顺序 + 折叠偏好持久化；取代原等分视图）
 - [x] 设置对话框（词典路径/默认词典/视图/历史条数/字号/字体 → config.json）
 - [x] 历史侧边栏（点击回查/右键删除/清空）
-- [x] 🔊 发音（QTextToSpeech 离线；⌘P 快捷键）
+- [x] 🔊 发音：检测到 `.mdd` 自动优先真实牛津原声；无则 TTS 合成并**标注"TTS 合成（非牛津原声）"**；⌘P 快捷键；词条内 `sound://` 图标可点击
 - [x] 已清理误入库的 `__pycache__/*.pyc`
 
 ### 1.2 文件清单
@@ -53,7 +53,8 @@ _func_lex/
 │   │   ├── mdx_parser.py        ✅ 惰性迭代（不物化内容，修复 Phase1 内存根源）
 │   │   ├── indexer.py           ✅ SQLiteIndex（meta/entries/phrases，压缩，跳转解析）
 │   │   ├── dictionary.py        ✅ DictionaryService（扫描/分类/查询/发音资源）
-│   │   ├── parser.py            ✅ EntryParser + extract_phrases
+│   │   ├── audio.py             ✅ MddAudioIndex（.mdd 音频定向提取）
+│   │   ├── parser.py            ✅ EntryParser + extract_phrases + extract_audio_refs
 │   │   ├── history.py           ✅ HistoryStore（SQLite）
 │   │   └── config.py            ✅ ConfigManager（config.json）
 │   └── ui/                      ✅ PySide6
@@ -82,7 +83,18 @@ class DictionaryService:
     def suggest(self, prefix, limit=20)
     def related_phrases(self, word, dict_name=None) -> List[PhraseItem]
     def has_audio(self, word) -> bool                 # 发音资源词头（懒加载）
+    def find_audio_mdd(self) -> Optional[str]         # 配置路径中找 .mdd（真实发音）
     def total_entries(self) -> int
+
+# funlex/core/audio.py
+class MddAudioIndex:
+    def __init__(self, mdd_path)                      # readmdict.MDD，按需定向提取
+    def has(key) -> bool / get(key) -> Optional[bytes]  # 文件名 key（如 take__gb_1.mp3）
+    def has_audio_for(word, variant='') -> bool
+    def find(word, variant='') -> Optional[(key, bytes)]  # 英/美音匹配
+
+# funlex/core/parser.py 追加
+def extract_audio_refs(html) -> List[(key, variant)]  # sound:// 引用 → (key, gb/us)
 
 # funlex/core/indexer.py
 class SQLiteIndex:
@@ -134,8 +146,8 @@ macOS/Linux 直接 pip；Windows 可能要 Visual C++ Build Tools 或 `conda ins
 ### 坑 8：**结构化解析以牛津为主**
 `parser.py` 的正则按牛津第10版 class（`.pos/.phon/.phons_br/.phons_n_am/.x/.idm/.pvrefs/.xh`）。Collins（`C1_*`、`phrasal_verb_box`）和韦氏（`bword://`）尽力而为；新增词典 class 需扩展正则。`class="x"` 在牛津是例句。
 
-### 坑 9：**Collins 原声不可播（新）**
-Collins Cobuild Audio.mdx 只有 `sound://` 引用，**项目无配套 .mdd**，真实音频无法播放。发音走 QTextToSpeech（离线）。若日后补 .mdd：`funlex/ui/pronounce.py` 切换到 QtMultimedia 播放（已可用），`sound://` 处理在 `main_window._on_anchor_clicked`。
+### 坑 9：**真实发音依赖 .mdd（新）**
+词条内 `sound://` 是音频引用，真实音频在配套 `.mdd`（如 oald10.mdd）里。`.mdd` 需自行获取（FreeMdict/52pojie 论坛 + 百度网盘）。放项目根或 `dictionaries/` 后 `MddAudioIndex` 自动检测并优先播放原声；无则 TTS 合成，UI 标注"TTS 合成（非牛津原声）"。`MddAudioIndex._extract` 复用 readmdict 记录格式（已验证），按 key 定向提取不载入全量。`.mdd` key 需与 `sound://` 文件名一致（小写、可能带前导 `/`，已归一化处理）。
 
 ### 坑 10：GUI 无法在无头环境验证
 本环境 `QApplication` 平台插件无法加载（QKeySequence 构造会段错误），UI 只能实机运行验证。Core 层全部可无头测试。
@@ -168,7 +180,7 @@ UI 调 Core 用 `Signal` + `Slot`，不要传回调。
 |---|------|------|--------|
 | 1 | 体验 | `README 2.md`（项目根，中文版特性草稿，含未实现的"笔记"）待整合/删除 | 小 |
 | 2 | 解析 | 多词典 class 全覆盖（Collins/韦氏结构化） | 中 |
-| 3 | 发音 | 接入配套 `.mdd` 后播放真实 Collins 原声 | 小 |
+| 3 | 发音 | 已支持 `.mdd` 真实音频（需用户自行获取 .mdd 放入词典目录）；可做"无 .mdd 时的发音设置开关" | 小 |
 | 4 | 性能 | 首构建约 1 分钟（一次性）；可加"仅构建常用词典"选项 | 中 |
 | 5 | 体验 | SearchBar 加 suggest 弹出补全（目前只状态栏提示） | 中 |
 | 6 | 功能 | `related_phrases()` 已暴露，UI 暂用 entry 字段（parse 结果），可直接切换 | 小 |
