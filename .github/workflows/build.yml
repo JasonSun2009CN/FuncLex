@@ -1,71 +1,209 @@
-# 一键构建 4 个版本（Mac Intel / Mac Apple Silicon / Windows / Linux）
-# 用法: GitHub 仓库 → Actions → "Build FuncLex" → Run workflow
-name: Build FuncLex
+# =============================================================================
+# FuncLex CI/CD —— 一档触发，五平台并行打包，自动发布
+#
+#   * 触发规则
+#     - push 到 main           → 五平台打包成安装包，存临时 Artifact（仅测试预览，7 天）
+#     - push 版本 tag v*       → 同一套打包，全部安装包自动聚合，创建正式 GitHub Release
+#     - 手动 workflow_dispatch → 可选，任意分支/任意版本自测
+#
+#   * 分支策略：只保留 main。禁止按平台拆分支（windows / mac / linux）——
+#     见 docs/ci-cd.md「为什么不用分平台分支」。五平台差异全部收敛在 matrix 一维里。
+#
+#   * 产物（每个矩阵任务产出一个安装包，PyInstaller 不能交叉编译，一机一架构）：
+#     - macOS  Apple Silicon (arm64)   FuncLex-macOS-AppleSilicon-arm64.zip   (.app)
+#     - macOS  Intel (x86_64)          FuncLex-macOS-Intel-x86_64.zip         (.app)
+#     - Windows x64                    FuncLex-Windows-x64.zip                (便携目录)
+#     - Linux   x86_64                 FuncLex-Linux-x86_64.tar.gz            (便携目录)
+#     - Linux   aarch64                FuncLex-Linux-aarch64.tar.gz           (便携目录)
+#
+#   * 资源依赖：内置 dictionaries/ 词库（.mdx/.mdd）通过 --add-data 一并打入，
+#     应用运行期用 sys._MEIPASS 定位（见 funlex/core/paths.py）。
+# =============================================================================
+name: Build & Release FuncLex
 
 on:
+  push:
+    branches: [main]
+    tags: ["v*"]
   workflow_dispatch:
+
+permissions:
+  contents: write # 创建 GitHub Release 需要
+
+env:
+  PYTHON_VERSION: "3.11"
 
 jobs:
   build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false
+      fail-fast: false # 单平台失败不拖垮其他平台
       matrix:
         include:
-          - os: macos-13            # x86_64 (Intel)
-            label: mac-intel
+          # ---- macOS 双架构（两个独立 zip；PyInstaller 不交叉编译，且 python-lzo 无 universal2 wheel）----
+          - os: macos-15 # Apple Silicon（macos-13 已退役、macos-14 将停服，勿用）
+            label: macOS-AppleSilicon
+            arch: arm64
             icon: packaging/assets/icon.icns
-            extra: --osx-bundle-identifier com.funlex.app
-          - os: macos-14            # arm64 (Apple Silicon)
-            label: mac-arm
+            artifact: FuncLex-macOS-AppleSilicon-arm64
+            archive: zip
+          - os: macos-15-intel # Intel x86_64（GitHub 现役 Intel 标签）
+            label: macOS-Intel
+            arch: x86_64
             icon: packaging/assets/icon.icns
-            extra: --osx-bundle-identifier com.funlex.app
+            artifact: FuncLex-macOS-Intel-x86_64
+            archive: zip
+          # ---- Windows x64 ----
           - os: windows-latest
-            label: windows
+            label: Windows-x64
+            arch: x86_64
             icon: packaging/assets/icon.ico
-            extra: ""
-          - os: ubuntu-latest
-            label: linux
+            artifact: FuncLex-Windows-x64
+            archive: zip
+          # ---- Linux x86_64：用 ubuntu-22.04(glibc 2.35) 而非 latest，压低 glibc 兼容地板 ----
+          - os: ubuntu-22.04
+            label: Linux-x64
+            arch: x86_64
             icon: ""
-            extra: ""
-    runs-on: ${{ matrix.os }}
+            artifact: FuncLex-Linux-x86_64
+            archive: tar.gz
+          # ---- Linux aarch64（GitHub 官方 arm64 标签，glibc 2.35）----
+          - os: ubuntu-22.04-arm
+            label: Linux-aarch64
+            arch: aarch64
+            icon: ""
+            artifact: FuncLex-Linux-aarch64
+            archive: tar.gz
+
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: 安装依赖
+      # Linux：liblzo2 供 python-lzo 源码编译兜底；GStreamer 供 .mdd 发音(QMediaPlayer)
+      - name: 安装 Linux 系统依赖
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y liblzo2-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good
+
+      - name: 安装 Python 依赖
+        shell: bash
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt python-lzo pyinstaller pillow
+          pip install -r requirements.txt pillow pyinstaller
+          if ! pip install python-lzo; then
+            echo "::warning::python-lzo 无匹配 wheel，尝试从源码编译"
+            if [ "$RUNNER_OS" = "Linux" ]; then sudo apt-get install -y liblzo2-dev
+            elif [ "$RUNNER_OS" = "macOS" ]; then brew install lzo
+            fi
+            pip install python-lzo
+          fi
 
-      - name: 生成图标
-        run: python packaging/make_icons.py packaging/assets/icon.png packaging/assets
+      # 正式图标源图 packaging/assets/icon.png（已入库），生成三平台图标。
+      # icon.icns/icon.ico 不入库(.gitignore)，CI 每次从源图重新生成。
+      - name: 从 icon.png 生成三平台图标
         shell: bash
+        run: python packaging/make_icons.py packaging/assets/icon.png packaging/assets
 
-      - name: PyInstaller 构建
+      # 一机一架构同步编译。内置 dictionaries/ 随包打入；排除未用到的 QtWebEngine 减体积。
+      - name: PyInstaller 打包
         shell: bash
         run: |
-          ICON=""
-          [ -n "${{ matrix.icon }}" ] && ICON="--icon ${{ matrix.icon }}"
-          # --add-data 分隔符随平台：Windows 用 ;，其余用 :
-          SEP=":"
-          [ "$RUNNER_OS" = "Windows" ] && SEP=";"
+          SEP=":"; [ "$RUNNER_OS" = "Windows" ] && SEP=";"
+          ICON=""; [ -n "${{ matrix.icon }}" ] && ICON="--icon ${{ matrix.icon }}"
+          EXTRA=""; [ "$RUNNER_OS" = "macOS" ] && EXTRA="--osx-bundle-identifier com.funlex.app"
           python -m PyInstaller --noconfirm --clean --onedir --windowed \
             --name FuncLex \
             --paths . \
             --hidden-import lzo \
             --add-data "funlex/ui/assets${SEP}funlex/ui/assets" \
+            --add-data "dictionaries${SEP}dictionaries" \
             --exclude-module PySide6.QtWebEngineCore \
             --exclude-module PySide6.QtWebEngineWidgets \
-            $ICON \
-            ${{ matrix.extra }} \
+            $ICON $EXTRA \
             app.py
 
-      - name: 上传产物
+      # mac：写入版本号 + ad-hoc 签名（失败则移除签名不阻塞，见 docs/ci-cd.md「mac 安全拦截」）
+      - name: 完善 mac .app（版本号 + ad-hoc 签名）
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          VERSION=$(python -c "import sys; sys.path.insert(0,'.'); from funlex import __version__; print(__version__)")
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" \
+            -c "Set :CFBundleVersion $VERSION" dist/FuncLex.app/Contents/Info.plist 2>/dev/null || true
+          xattr -cr dist/FuncLex.app 2>/dev/null || true
+          codesign --force --deep -s - dist/FuncLex.app 2>/dev/null \
+            || codesign --remove-signature dist/FuncLex.app 2>/dev/null || true
+
+      # Linux：附 .desktop + 图标做桌面集成（可选，体验更完整）
+      - name: Linux 桌面集成文件
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          cp packaging/assets/icon-linux.png dist/FuncLex/icon.png
+          cat > dist/FuncLex/FuncLex.desktop <<EOF
+          [Desktop Entry]
+          Type=Application
+          Name=FuncLex
+          Comment=Local offline MDX dictionary
+          Exec=${PWD}/dist/FuncLex/FuncLex
+          Icon=${PWD}/dist/FuncLex/icon.png
+          Terminal=false
+          Categories=Office;Dictionary;
+          EOF
+
+      # 压缩成发布安装包（mac 用 ditto 保 .app 符号链接/权限；Windows 用 Python zip 保证目录包裹；Linux tar.gz）
+      - name: 压缩安装包
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            macOS)
+              ditto -c -k --keepParent dist/FuncLex.app ${{ matrix.artifact }}.zip ;;
+            Windows)
+              python -c "import shutil; shutil.make_archive('${{ matrix.artifact }}', 'zip', 'dist', 'FuncLex')" ;;
+            Linux)
+              tar -C dist -czf ${{ matrix.artifact }}.tar.gz FuncLex ;;
+          esac
+
+      # push main / 手动触发：安装包存临时 Artifact，仅测试预览
+      - name: 上传产物 Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FuncLex-${{ matrix.label }}
-          path: dist/
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}.${{ matrix.archive }}
           if-no-files-found: error
+          retention-days: 7
+
+  # 只有打 tag(v*) 才跑：聚合五平台安装包 → 正式 GitHub Release
+  release:
+    name: 发布 GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: false
+
+      - name: 展平安装包到统一目录
+        shell: bash
+        run: |
+          find release-assets -type f \( -name "*.zip" -o -name "*.tar.gz" \) -exec mv -f {} release-assets/ \;
+          ls -lh release-assets/
+
+      - name: 创建 GitHub Release 并附全部安装包
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          gh release create "$TAG" \
+            release-assets/*.zip release-assets/*.tar.gz \
+            --title "FuncLex $TAG" \
+            --generate-notes \
+            --repo "${GITHUB_REPOSITORY}"

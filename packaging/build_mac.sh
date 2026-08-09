@@ -50,6 +50,7 @@ ICON_ARGS=()
   --paths . \
   --hidden-import lzo \
   --add-data "funlex/ui/assets:funlex/ui/assets" \
+  --add-data "dictionaries:dictionaries" \
   --exclude-module PySide6.QtWebEngineCore \
   --exclude-module PySide6.QtWebEngineWidgets \
   "${ICON_ARGS[@]}" \

@@ -1,15 +1,17 @@
 # 打包指南
 
-FuncLex 用 **PyInstaller（onedir 模式）** 打包，4 个版本：
+FuncLex 用 **PyInstaller（onedir 模式）** 打包，5 个版本（CI 矩阵一键并行出齐）：
 
 | 版本 | 目标 | 构建环境 | 产物 |
 |------|------|----------|------|
-| `mac-intel` | Intel Mac | macOS x86_64 | `dist/FuncLex.app` |
-| `mac-arm` | Apple Silicon Mac | macOS arm64 | `dist/FuncLex.app` |
-| `windows` | Windows 10/11 x64 | Windows | `dist/FuncLex/FuncLex.exe` |
-| `linux` | Linux x64 | Linux | `dist/FuncLex/FuncLex` |
+| `mac-arm` | Apple Silicon Mac | macOS arm64（`macos-15`） | `FuncLex-macOS-AppleSilicon-arm64.zip`（.app） |
+| `mac-intel` | Intel Mac | macOS x86_64（`macos-15-intel`） | `FuncLex-macOS-Intel-x86_64.zip`（.app） |
+| `windows` | Windows 10/11 x64 | Windows（`windows-latest`） | `FuncLex-Windows-x64.zip`（便携目录） |
+| `linux-x64` | Linux x86_64 | Ubuntu 22.04（glibc 2.35） | `FuncLex-Linux-x86_64.tar.gz` |
+| `linux-arm64` | Linux aarch64 | Ubuntu 22.04-arm | `FuncLex-Linux-aarch64.tar.gz` |
 
-> PyInstaller **不能交叉编译**：哪个平台就在哪个平台打。CI 用 GitHub Actions 矩阵一键出 4 个。
+> PyInstaller **不能交叉编译**：哪个平台就在哪个平台打。CI 用 GitHub Actions 矩阵一行一个平台、同步编译。
+> 完整 CI/CD 方案（触发规则、Release/Packages/Deployment 取舍、本地操作、三大坑点）见 [docs/ci-cd.md](../docs/ci-cd.md)。
 
 ## 数据目录（打包后）
 
@@ -64,18 +66,24 @@ build_windows.bat
 - `python-lzo`：Ubuntu 先 `apt install liblzo2-dev`
 - `.mdd` 发音依赖 GStreamer：`apt install gstreamer1.0-plugins-base gstreamer1.0-plugins-good`
 
-## CI 一键构建 4 版
+## CI 一键构建 5 版
 
-推到 GitHub 后：Actions → **Build FuncLex** → Run workflow → 下载 4 个 artifact。
+推到 GitHub 后自动触发（无需手动）：
+
+- **push 到 `main`**：5 个矩阵任务并行打包成安装包，存临时 **Artifact**（Actions 页面下载预览，7 天自动清理）
+- **push 版本 tag `v*`**：打包完成后自动聚合全部安装包，创建正式 **GitHub Release**（无需手动操作）
+- 手动触发：Actions → **Build & Release FuncLex** → Run workflow（任意分支自测）
+
+> 本地打标签 → 推送 → 自动发版的具体步骤见 [docs/ci-cd.md](../docs/ci-cd.md) 第 3 节。
 
 ## 注意 / 常见问题
 
-- **词典 `.mdx` / `data/` 不打进包**，由用户放到数据目录（体积小、易更新）。
+- **内置词库 `dictionaries/` 随包打入**（`--add-data`），离线开箱即用；`data/`（索引/历史/笔记）运行时生成在用户数据目录，不打进包。内置词典更新需重新发版。
 - **排除 QtWebEngine 以减小体积**（应用未用到）；若某平台构建异常，去掉 `--exclude-module PySide6.QtWebEngine*` 重试。
 - **mac 架构**：PyInstaller 打出的版本跟随所用 Python 的架构。
   - 本开发机是 **Intel（x86_64）**，本地 `build_mac.sh arm` 打出的仍是 x86_64；
-    要 **Apple Silicon 版**需 arm64 的 Python（如 python.org arm64 安装包）或 CI 的 `macos-14` runner。
-  - 快捷路径：直接推 GitHub 用 Actions 矩阵，`macos-13`(Intel) + `macos-14`(arm) 各出一个。
+    要 **Apple Silicon 版**需 arm64 的 Python（如 python.org arm64 安装包）或 CI 的 `macos-15` runner。
+  - 快捷路径：直接推 GitHub 用 Actions 矩阵，`macos-15-intel`(Intel) + `macos-15`(arm) 各出一个。
 - **mac 签名（较新 macOS 的 com.apple.provenance 坑）**：
   macOS 会给打包文件打 `com.apple.provenance` 系统托管属性，用户态 `xattr -d` 删不掉，
   codesign 因此报 `resource fork, Finder information, or similar detritus not allowed`，**ad-hoc 签名做不了**。

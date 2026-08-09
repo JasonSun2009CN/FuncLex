@@ -54,11 +54,34 @@ def default_config_path() -> str:
     return os.path.join(os.getcwd(), "config.json")
 
 
-def default_dictionary_dirs() -> List[str]:
-    """默认词典扫描目录（打包后为 用户数据目录/dictionaries，自动创建）"""
+def bundled_dictionary_dir() -> Path:
+    """打包内置词库目录（PyInstaller onedir：--add-data 打入 sys._MEIPASS/dictionaries）。
+
+    离线开箱即用：随安装包分发的 .mdx 就在这，只读、不可被用户改动。
+    """
     if is_frozen():
+        base = getattr(sys, "_MEIPASS", None)
+        if base:
+            d = Path(base) / "dictionaries"
+            if d.is_dir():
+                return d
+    return Path()
+
+
+def default_dictionary_dirs() -> List[str]:
+    """默认词典扫描目录。
+
+    打包(frozen)：内置词库(sys._MEIPASS/dictionaries) 优先 + 用户数据目录/dictionaries 扩充；
+    开发：项目根 + dictionaries/。
+    """
+    if is_frozen():
+        dirs: List[str] = []
+        bundled = bundled_dictionary_dir()
+        if bundled.is_dir():
+            dirs.append(str(bundled))
         d = user_data_dir() / "dictionaries"
         d.mkdir(parents=True, exist_ok=True)
-        return [str(d)]
+        dirs.append(str(d))
+        return dirs
     cwd = os.getcwd()
     return [cwd, os.path.join(cwd, "dictionaries")]

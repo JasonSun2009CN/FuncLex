@@ -15,3 +15,5 @@ config.json
 packaging/assets/icon.icns
 packaging/assets/icon.ico
 packaging/assets/icon-linux.png
+# 本地 Claude Code 权限配置（机器相关，不入库）
+.claude/
