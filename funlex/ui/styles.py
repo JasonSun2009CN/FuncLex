@@ -347,22 +347,38 @@ QPushButton#panelClearBtn {
 QPushButton#panelClearBtn:hover {
     background-color: rgba(0,122,255,0.12);
 }
-QListWidget#historyList {
+QLineEdit#historyFilter {
+    background-color: rgba(255,255,255,0.5);
+    border: 1px solid rgba(0,0,0,0.05);
+    border-radius: 8px;
+    padding: 5px 10px;
+    margin: 0 8px;
+    font-size: 12px;
+    color: #1d1d1f;
+}
+QLineEdit#historyFilter:focus {
+    border: 1px solid rgba(0,122,255,0.5);
+    background-color: rgba(255,255,255,0.75);
+}
+QLineEdit#historyFilter::placeholder {
+    color: #a1a1a6;
+}
+QTreeWidget#historyList {
     background-color: transparent;
     border: none;
     font-size: 13px;
     color: #1d1d1f;
     outline: none;
 }
-QListWidget#historyList::item {
-    padding: 6px 10px;
+QTreeWidget#historyList::item {
+    padding: 5px 8px;
     border-radius: 8px;
     margin: 1px 6px;
 }
-QListWidget#historyList::item:hover {
+QTreeWidget#historyList::item:hover {
     background-color: rgba(255,255,255,0.55);
 }
-QListWidget#historyList::item:selected {
+QTreeWidget#historyList::item:selected {
     background-color: rgba(0,122,255,0.14);
     color: #0a4fa0;
 }
@@ -619,13 +635,25 @@ QPushButton#panelClearBtn {
 QPushButton#panelClearBtn:hover {
     background-color: rgba(0,122,255,0.18);
 }
-QListWidget#historyList {
+QLineEdit#historyFilter {
+    background-color: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.08);
     color: #f2f2f7;
 }
-QListWidget#historyList::item:hover {
+QLineEdit#historyFilter:focus {
+    border: 1px solid rgba(0,122,255,0.6);
+    background-color: rgba(255,255,255,0.10);
+}
+QLineEdit#historyFilter::placeholder {
+    color: #8e8e93;
+}
+QTreeWidget#historyList {
+    color: #f2f2f7;
+}
+QTreeWidget#historyList::item:hover {
     background-color: rgba(255,255,255,0.07);
 }
-QListWidget#historyList::item:selected {
+QTreeWidget#historyList::item:selected {
     background-color: rgba(0,122,255,0.28);
     color: #bcd9ff;
 }

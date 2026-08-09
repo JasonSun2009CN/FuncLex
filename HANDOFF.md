@@ -39,6 +39,7 @@ cd /Users/fiona/Documents/trae_projects/FuncLex
 - [x] 📝 笔记（P3.1/P3.2）：合并视图底部固定"我的笔记"卡片，随查词切换；输入标"未保存"，⌘S/保存落盘，切词自动保存；菜单"所有笔记…"浏览/搜索/删除/回查；**删除笔记均有确认弹窗**（按钮删除 / 清空保存=删除 / 对话框删除）
 - [x] 🌓 主题（P3.5）：设置对话框"浅色 / 深色 / 跟随系统"即时生效并持久化；浅色零改动（DARK_QSS 叠加），词条 HTML 双主题 token，system 模式监听 colorSchemeChanged 实时跟随
 - [x] 🔍 搜索补全（P3.3）：输入防抖(150ms)弹玻璃下拉（前缀跨词典去重，不足模糊包含补齐）；↑↓/回车/点击选中并回填；Esc 关闭；回车不拦截兼容中文输入法
+- [x] 🕒 历史增强（P3.4）：右侧栏按日期分组（今天/昨天/7天内/更早）+ 搜索过滤 + 相对时间/工具提示 + 清空确认
 - [x] 已清理误入库的 `__pycache__/*.pyc`
 
 ### 1.2 文件清单
@@ -68,7 +69,8 @@ _func_lex/
 │       ├── entry_view_merged.py 多词典合并视图（可折叠卡片 + 底部笔记卡片）
 │       ├── notes_card.py        ✅ 笔记编辑卡片（P3.2：输入即脏、⌘S 保存、切词自动保存）
 │       ├── notes_dialog.py      ✅ 所有笔记列表对话框（搜索/删除/双击回查）
-│       ├── history_panel.py / settings_dialog.py / pronounce.py / build_worker.py
+│       ├── history_panel.py     ✅ 历史侧边栏（日期分组 + 搜索过滤 + 右键删除 + 清空确认）
+│       ├── settings_dialog.py / pronounce.py / build_worker.py
 ├── data/                        🔲 运行时（index.db / history.db，gitignore）
 └── dictionaries/                🔲 可选放自定义 MDX
 ```
@@ -215,7 +217,9 @@ UI 调 Core 用 `Signal` + `Slot`，不要传回调。
 2. ~~P3.5 深色主题~~ ✅ 已完成（DARK_QSS 叠加 + 词条 HTML token + 设置切换/跟随系统）
 3. ~~P3.3 搜索自动补全/模糊~~ ✅ 已完成（防抖 + 补全弹窗 + 前缀/模糊建议）
 4. ~~P3.6 多词典合并查询~~ ✅ 已完成（见 Phase 2 交付）
-5. **P3.4 历史侧边栏 UI 增强**（分组、搜索）
+5. ~~P3.4 历史侧边栏 UI 增强~~ ✅ 已完成（日期分组 + 搜索过滤 + 清空确认）
+
+**Phase 3 仅剩**：P3.7 加载状态与错误提示优化、P3.8 复杂 MDX 排版升级 QWebEngineView（可选，改动大）。
 
 ---
 
