@@ -1,6 +1,8 @@
 """词条显示区 - QTextBrowser 子类，直接 setHtml 渲染 MDX 原始 HTML"""
 from __future__ import annotations
 
+from urllib.parse import quote
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QTextBrowser
@@ -17,6 +19,7 @@ def _state_colors() -> dict:
             "body": "#a1a1a6",
             "faint": "#8e8e93",
             "divider": "rgba(255,255,255,0.15)",
+            "link": "#4d9fff",
         }
     return {
         "heading": "#1d1d1f",
@@ -24,6 +27,7 @@ def _state_colors() -> dict:
         "body": "#6e6e73",
         "faint": "#a1a1a6",
         "divider": "#d2d2d7",
+        "link": "#007aff",
     }
 
 
@@ -84,16 +88,29 @@ class EntryView(QTextBrowser):
         self._last_word = word
         self.setHtml(wrapped)
 
-    def show_not_found(self, word: str = "") -> None:
+    def show_not_found(self, word: str = "", suggestions=()) -> None:
+        """未找到提示，可附带"您是否想查"建议（点击走 funlex://phrase 跳转）。"""
         self._state = "not_found"
         self._last_word = word
         c = _state_colors()
         msg = f"未找到该单词：<b>{word}</b>" if word else "未找到该单词"
+        sug_html = ""
+        if suggestions:
+            links = "、".join(
+                f'<a href="funlex://phrase/{quote(s, safe="")}" '
+                f'style="color:{c["link"]};">{s}</a>'
+                for s in suggestions
+            )
+            sug_html = (
+                f'<div style="font-size: 13px; margin-top: 14px; '
+                f'color: {c["muted"]};">您是否想查：{links}</div>'
+            )
         html = f"""
 <body>
 <div style="padding: 48px 40px; text-align: center; color: {c['muted']};">
     <div style="font-size: 20px; color: {c['heading']}; font-weight: 500;">{msg}</div>
     <div style="font-size: 13px; margin-top: 12px; color: {c['body']};">试试其他拼写或切换词典</div>
+    {sug_html}
 </div>
 </body>
 """

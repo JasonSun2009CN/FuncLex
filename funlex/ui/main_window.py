@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QMainWindow,
     QMessageBox,
+    QProgressBar,
     QPushButton,
     QSplitter,
     QStackedWidget,
@@ -85,6 +86,7 @@ class MainWindow(QMainWindow):
 
         self._current_word = ""
         self._worker: Optional[IndexBuildWorker] = None
+        self._failed_builds: List[Tuple[str, str]] = []
 
         # 注入合并显示顺序
         self.service.set_dictionary_order(self.config.dictionary_order)
@@ -163,9 +165,18 @@ class MainWindow(QMainWindow):
 
         root.addWidget(self.main_split, 1)
 
-        # 状态栏
+        # 状态栏 + 索引构建进度条（右侧，构建时显示）
         self.status: QStatusBar = self.statusBar()
         self.status.showMessage("就绪")
+        self.build_progress = QProgressBar(self)
+        self.build_progress.setObjectName("buildProgress")
+        self.build_progress.setRange(0, 100)
+        self.build_progress.setValue(0)
+        self.build_progress.setTextVisible(False)
+        self.build_progress.setFixedHeight(6)
+        self.build_progress.setMaximumWidth(160)
+        self.build_progress.hide()
+        self.status.addPermanentWidget(self.build_progress)
 
         # 快捷键（macOS 用 ⌘，其他平台用 Ctrl）
         mod = "Meta" if sys.platform == "darwin" else "Ctrl"
@@ -252,33 +263,55 @@ class MainWindow(QMainWindow):
         pending = self.service.pending_builds()
         if not pending or self._worker is not None:
             return
+        self._failed_builds = []
         self._worker = IndexBuildWorker(
             self.service, [i.name for i in pending], parent=self
         )
         self._worker.progress.connect(self._on_build_progress)
         self._worker.dict_finished.connect(self._on_dict_finished)
+        self._worker.dict_failed.connect(self._on_dict_failed)
         self._worker.all_finished.connect(self._on_all_finished)
         self._worker.start()
 
     def _on_build_progress(self, name: str, done: int, total: int) -> None:
+        self.build_progress.setRange(0, max(total, 1))
+        self.build_progress.setValue(done)
+        self.build_progress.show()
         self.status.showMessage(f"正在构建索引：{name}（{done:,}/{total:,}）")
 
     def _on_dict_finished(self, name: str, count: int) -> None:
         # 新词典索引就绪，当前词若有更多词典命中则刷新
+        self.status.showMessage(f"已构建 {name}（{count:,} 词条）")
         if self._current_word:
             self._on_search(self._current_word)
 
+    def _on_dict_failed(self, name: str, error: str) -> None:
+        self._failed_builds.append((name, error))
+        self.status.showMessage(f"构建失败：{name}（{error}）")
+
     def _on_all_finished(self) -> None:
         self._worker = None
+        self.build_progress.hide()
         total = self.service.total_entries()
-        self.status.showMessage(
-            f"已加载 {len(self.service.ordered_dictionaries())} 本词典，共 {total:,} 词条"
+        msg = (
+            f"已加载 {len(self.service.ordered_dictionaries())} 本词典，"
+            f"共 {total:,} 词条"
         )
+        if self._failed_builds:
+            msg += f"；{len(self._failed_builds)} 本词典构建失败"
+            for name, err in self._failed_builds:
+                print(f"[FuncLex] build failed {name}: {err}")
+        self.status.showMessage(msg)
 
     # ---------- 槽 ----------
     def _show_state(self, method, *args) -> None:
         self.stack.setCurrentIndex(0)
         method(*args)
+
+    def _show_not_found(self, word: str) -> None:
+        """未找到提示页，附带"您是否想查"建议（前缀/模糊建议点击即查）。"""
+        suggestions = self.service.suggest_words(word, limit=6)
+        self._show_state(self.entry_view.show_not_found, word, suggestions)
 
     def _on_search(self, word: str) -> None:
         word = word.strip()
@@ -297,9 +330,18 @@ class MainWindow(QMainWindow):
             self.status.showMessage("索引构建中，请稍候再试…")
             return
 
-        entries = self.service.lookup_all(word)
+        try:
+            entries = self.service.lookup_all(word)
+        except Exception as e:
+            print(f"[FuncLex] lookup error for {word!r}: {e}")
+            self._show_not_found(word)
+            self.status.showMessage(f"查询出错：{e}")
+            self._current_word = ""
+            self.pronounce_btn.setEnabled(False)
+            return
+
         if not entries:
-            self._show_state(self.entry_view.show_not_found, word)
+            self._show_not_found(word)
             self.status.showMessage(f"未找到：{word}")
             self._current_word = ""
             self.pronounce_btn.setEnabled(False)

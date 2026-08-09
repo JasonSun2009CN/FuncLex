@@ -19,6 +19,7 @@ class IndexBuildWorker(QThread):
 
     progress = Signal(str, int, int)
     dict_finished = Signal(str, int)
+    dict_failed = Signal(str, str)  # (词典名, 错误信息)
     all_finished = Signal()
 
     def __init__(
@@ -37,6 +38,7 @@ class IndexBuildWorker(QThread):
                 self.dict_finished.emit(name, count)
             except Exception as e:
                 print(f"[IndexBuildWorker] failed to build {name}: {e}")
+                self.dict_failed.emit(name, str(e))
         self.all_finished.emit()
 
     def _cb(self, done: int, total: int) -> None:

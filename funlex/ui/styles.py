@@ -473,6 +473,15 @@ QStatusBar {
     padding: 3px 12px;
 }
 QStatusBar::item { border: none; }
+QProgressBar#buildProgress {
+    background-color: rgba(0,0,0,0.06);
+    border: none;
+    border-radius: 3px;
+}
+QProgressBar#buildProgress::chunk {
+    background-color: #007aff;
+    border-radius: 3px;
+}
 
 /* ============ 滚动条（细、半透明） ============ */
 QScrollBar:vertical {
@@ -772,6 +781,15 @@ QListWidget#notesList::item:selected {
 QStatusBar {
     color: #8e8e93;
     border-top: 1px solid rgba(255,255,255,0.06);
+}
+QProgressBar#buildProgress {
+    background-color: rgba(255,255,255,0.08);
+    border: none;
+    border-radius: 3px;
+}
+QProgressBar#buildProgress::chunk {
+    background-color: #4d9fff;
+    border-radius: 3px;
 }
 QScrollBar::handle:vertical {
     background: rgba(255,255,255,0.14);
