@@ -40,6 +40,8 @@ class DictionaryService:
         self._audio_name: Optional[str] = None
         self._audio_path: Optional[str] = None
         self._audio_words: Optional[Set[str]] = None
+        # 合并显示的词典顺序（上→下，由 config 注入）；空 = 按词条数倒序
+        self._order: List[str] = []
 
         if paths is None:
             paths = self._default_paths()
@@ -178,9 +180,44 @@ class DictionaryService:
         infos.sort(key=lambda i: i.entry_count, reverse=True)
         return infos
 
+    def set_dictionary_order(self, names: List[str]) -> None:
+        """设置合并显示的词典顺序（上→下）。只保留已加载的词典名。"""
+        loaded = {i.name for i in self.list_dictionaries()}
+        self._order = [n for n in names if n in loaded]
+
+    def ordered_dictionaries(self) -> List[DictionaryInfo]:
+        """合并显示的词典顺序：按 set_dictionary_order 的顺序；未指定的按词条数倒序补在后面"""
+        loaded = self.list_dictionaries()
+        if not self._order:
+            return loaded
+        by_name = {i.name: i for i in loaded}
+        ordered = [by_name[n] for n in self._order if n in by_name]
+        rest = [i for i in loaded if i.name not in self._order]
+        return ordered + rest
+
     def first_dictionary(self) -> Optional[DictionaryInfo]:
-        infos = self.list_dictionaries()
+        infos = self.ordered_dictionaries()
         return infos[0] if infos else None
+
+    def lookup_all(self, word: str) -> List[DictionaryEntry]:
+        """多词典合并查询：返回所有命中词典的词条，按显示顺序（上→下）。
+
+        每个词条已做结构化懒解析（音标/词性/例句/习语），供合并视图直接渲染。
+        """
+        if not word or not word.strip():
+            return []
+        key = word.strip().lower()
+        out: List[DictionaryEntry] = []
+        for info in self.ordered_dictionaries():
+            hit = self._index.lookup(key, info.name)
+            if hit is None:
+                continue
+            display, content = hit
+            entry = DictionaryEntry(
+                word=display, dictionary_name=info.name, raw_content=content
+            )
+            out.append(self._enrich(entry))
+        return out
 
     def lookup(
         self, word: str, dictionary_name: Optional[str] = None

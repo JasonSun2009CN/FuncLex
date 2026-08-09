@@ -32,7 +32,7 @@ cd /Users/fiona/Documents/trae_projects/FuncLex
 - [x] 结构化解析：`take` → 音标 /teɪk/、pos [verb, noun]、41 习语、23 短语动词
 - [x] `@@@LINK=` 跳转解析（`%` → `per cent`）
 - [x] 词条底部"相关短语动词 / 习语"区块，点击跳转查询
-- [x] 等分视图（按词性 QSplitter 等宽面板）
+- [x] 多词典合并显示（每词典可折叠卡片 + 设置调整顺序 + 折叠偏好持久化；取代原等分视图）
 - [x] 设置对话框（词典路径/默认词典/视图/历史条数/字号/字体 → config.json）
 - [x] 历史侧边栏（点击回查/右键删除/清空）
 - [x] 🔊 发音（QTextToSpeech 离线；⌘P 快捷键）
@@ -59,7 +59,7 @@ _func_lex/
 │   └── ui/                      ✅ PySide6
 │       ├── styles.py            QSS + EntryView 默认 CSS
 │       ├── search_bar.py / entry_view.py / main_window.py
-│       ├── entry_view_split.py  等分视图
+│       ├── entry_view_merged.py 多词典合并视图（可折叠卡片）
 │       ├── history_panel.py / settings_dialog.py / pronounce.py / build_worker.py
 ├── data/                        🔲 运行时（index.db / history.db，gitignore）
 └── dictionaries/                🔲 可选放自定义 MDX
@@ -75,7 +75,10 @@ class DictionaryService:
     def pending_builds(self) -> List[DictionaryInfo]  # 需构建索引的词典
     def build_index(self, name, parser=None, progress_cb=None) -> int
     def list_dictionaries(self)                       # 仅已构建（loaded）词典，entry_count 倒序
-    def lookup(self, word, dict_name=None) -> Optional[DictionaryEntry]  # 命中即结构化解析
+    def lookup(self, word, dict_name=None) -> Optional[DictionaryEntry]  # 单词典（兼容保留）
+    def lookup_all(self, word) -> List[DictionaryEntry]  # 多词典合并查询（按显示顺序）
+    def ordered_dictionaries(self) -> List[DictionaryInfo]  # 合并显示顺序
+    def set_dictionary_order(self, names)  # 注入显示顺序
     def suggest(self, prefix, limit=20)
     def related_phrases(self, word, dict_name=None) -> List[PhraseItem]
     def has_audio(self, word) -> bool                 # 发音资源词头（懒加载）
@@ -178,7 +181,7 @@ UI 调 Core 用 `Signal` + `Slot`，不要传回调。
 1. **P3.1/P3.2 笔记**（models 已有 `NoteItem`，SQLite 持久化 + 词条页编辑器）
 2. **P3.5 深色主题**（styles.py 颜色集中，最易）
 3. **P3.3 搜索自动补全/模糊**（SQLite FTS5 或前缀索引）
-4. **P3.6 多词典合并查询**
+4. ~~P3.6 多词典合并查询~~ ✅ 已完成（见 Phase 2 交付）
 5. **P3.4 历史侧边栏 UI 增强**（分组、搜索）
 
 ---
@@ -194,7 +197,7 @@ UI 调 Core 用 `Signal` + `Slot`，不要传回调。
 ## ✅ 接手 checklist
 
 - [ ] `python app.py` 跑一遍：搜索 `take`，看默认视图 + 🔊 发音
-- [ ] 视图菜单切换等分视图，观察按词性分块
+- [ ] 查词 `take` 看多词典合并显示，点击词典标题折叠/展开
 - [ ] 设置里改字号/默认词典，确认 config.json 生成
 - [ ] 查几个词后开历史侧边栏，点击回查
 - [ ] 读本文件 §"坑" 10 条

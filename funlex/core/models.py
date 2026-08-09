@@ -70,22 +70,26 @@ class NoteItem:
 class AppConfig:
     """应用配置"""
     dictionary_paths: List[str] = field(default_factory=list)
-    default_dictionary: str = ""
-    view_mode: str = "default"  # default / split
+    default_dictionary: str = ""  # 兼容旧配置保留，合并显示后不再使用
     theme: str = "light"  # light / dark
     history_limit: int = 100
     font_family: str = ""
     font_size: int = 14
+    # 词典合并显示顺序（上→下）；空 = 按词条数倒序
+    dictionary_order: List[str] = field(default_factory=list)
+    # 用户折叠的词典名（合并显示时沿用上次折叠偏好）
+    collapsed_dictionaries: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "dictionary_paths": self.dictionary_paths,
             "default_dictionary": self.default_dictionary,
-            "view_mode": self.view_mode,
             "theme": self.theme,
             "history_limit": self.history_limit,
             "font_family": self.font_family,
             "font_size": self.font_size,
+            "dictionary_order": self.dictionary_order,
+            "collapsed_dictionaries": self.collapsed_dictionaries,
         }
 
     @classmethod

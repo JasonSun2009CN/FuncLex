@@ -11,7 +11,7 @@ FuncLex 是一个基于 Python + PySide6 的本地桌面词典应用，支持读
 
 - 5 本真实词典 + 1 个发音资源，共 616,158 词条
 - SQLite 索引 + zlib 压缩，**二次启动 <1s**，内存占用大幅下降
-- 设置 / 历史 / 结构化解析 / 习语关联 / 等分视图 / 发音 全部落地
+- 设置 / 历史 / 结构化解析 / 习语关联 / **多词典合并显示** / 发音 全部落地
 
 ---
 
@@ -23,7 +23,7 @@ FuncLex 是一个基于 Python + PySide6 的本地桌面词典应用，支持读
 | UI 框架 | PySide6 (Qt 6) | 6.5+ 已验证 6.11.1 |
 | MDX 解析 | readmdict | 需 python-lzo 运行时 |
 | 索引 | SQLite (标准库) + zlib | `data/index.db`，内容压缩存储 |
-| 富文本渲染 | QTextBrowser | 等分视图用多个 QTextBrowser |
+| 富文本渲染 | QTextBrowser | 合并视图每词典一个 QTextBrowser |
 | 发音 | QTextToSpeech | 系统离线 TTS；QtMultimedia 备接 .mdd |
 | 配置 | `config.json` | 项目根目录，标准库 |
 | 历史 | SQLite | `data/history.db` |
@@ -51,7 +51,7 @@ FunLex/
 │       ├── main_window.py    # ✅ 主窗口
 │       ├── search_bar.py     # ✅ 搜索框
 │       ├── entry_view.py     # ✅ 词条视图（默认）
-│       ├── entry_view_split.py  # ✅ 等分视图
+│       ├── entry_view_merged.py # ✅ 多词典合并视图（可折叠卡片）
 │       ├── settings_dialog.py   # ✅ 设置
 │       ├── history_panel.py     # ✅ 历史面板
 │       ├── pronounce.py         # ✅ 发音助手
@@ -79,7 +79,7 @@ FunLex/
 ## Phase 2: 核心功能增强 ✅ 已完成
 
 ### 目标
-根治启动慢（SQLite 索引）、补齐设置/历史/结构化解析/习语关联/等分视图，并新增发音功能。
+根治启动慢（SQLite 索引）、补齐设置/历史/结构化解析/习语关联/多词典合并显示，并新增发音功能。
 
 ### 任务清单
 - [x] P2.1 SQLite 本地索引（替代内存 dict，二次启动 <1s）
@@ -89,8 +89,8 @@ FunLex/
   - 音标（英/美 `.phons_br`/`.phons_n_am`）、词性 `.pos`、例句 `.x`、习语 `.idm`、短语 `.pvrefs/.xh`
 - [x] P2.3 Phrasal Verb / Idiom 关联搜索
   - 构建期写入 `phrases` 反向索引表；词条底部"相关短语动词 / 习语"区块，点击跳转查询
-- [x] P2.4 等分视图 UI（`entry_view_split.py`）
-  - 按 `.pos` 标记切分 raw HTML 为等宽面板；无多词性自动降级单面板
+- [x] P2.4 等分视图 UI（`entry_view_split.py`）→ **已移除**，被 P3.6 多词典合并显示取代
+  （合并显示每词典一张可折叠卡片，按词性分块不再必要）
 - [x] P2.5 Settings 对话框 + config.json（`config.py` + `settings_dialog.py`）
   - 词典路径 / 默认词典 / 视图模式 / 历史条数 / 字号 / 字体
 - [x] P2.6 查询历史侧边栏（`history.py` + `history_panel.py`）
@@ -104,7 +104,7 @@ FunLex/
 2. ✅ 词典路径、默认词典、视图模式可配置（config.json + 设置对话框）
 3. ✅ 历史记录可点击回查
 4. ✅ 牛津第10版 POS / 例句 / 习语 / 短语动词能结构化抽取
-5. ✅ 等分视图可切换、能按词性分块
+5. ✅ 多词典合并显示：查词同时显示所有词典，可折叠，顺序可在设置调整
 6. ✅ 发音按钮可朗读；audio 词典正确分类为发音资源
 
 ### 遗留
@@ -125,7 +125,7 @@ FunLex/
 - [ ] P3.3 搜索自动补全 / 模糊匹配
 - [ ] P3.4 历史记录侧边栏 UI 增强
 - [ ] P3.5 现代 QSS 样式主题（深色 / 浅色切换）
-- [ ] P3.6 多词典合并查询
+- [x] P3.6 多词典合并查询（每词典可折叠卡片 + 设置中调整顺序 + 折叠偏好持久化）
 - [ ] P3.7 加载状态与错误提示优化
 - [ ] P3.8 复杂 MDX 排版升级 QWebEngineView（可选）
 
@@ -154,10 +154,11 @@ FunLex/
   - 指纹（size+mtime）存 meta 表，MDX 未变更不重建
   - 构建在后台线程，进度显示于状态栏，已构建词典即查即用
 
-### 3. 两种视图切换
-- 默认视图：单栏保留原 HTML 排版
-- 等分视图：按 `.pos` 标记切分，QSplitter 等宽面板
-- `QStackedWidget` 切换，`config.view_mode` 持久化
+### 3. 多词典合并显示（取代等分视图）
+- 查词时 `lookup_all()` 返回所有命中词典词条，按显示顺序堆叠
+- 每本词典一张可折叠玻璃卡片（`entry_view_merged.py`），折叠偏好存 `config.collapsed_dictionaries`
+- 显示顺序存 `config.dictionary_order`，设置中上移/下移调整
+- 相关短语/习语聚合去重后显示在底部一张卡片
 
 ### 4. Phrasal Verb / Idiom 关联
 - 构建期 `extract_phrases()` 从 `.idm/.phrv/.pvrefs/.xh` 抽取，写入 `phrases(phrase, headword, dict, kind)`

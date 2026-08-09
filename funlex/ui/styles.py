@@ -109,33 +109,6 @@ QPushButton#pronounceBtn:disabled {
     background-color: rgba(255,255,255,0.35);
 }
 
-/* ============ 词典切换下拉（玻璃） ============ */
-QComboBox#dictSelector {
-    background-color: rgba(255,255,255,0.6);
-    border: 1px solid rgba(255,255,255,0.9);
-    border-radius: 10px;
-    padding: 6px 12px;
-    font-size: 13px;
-    min-width: 180px;
-}
-QComboBox#dictSelector:hover {
-    border: 1px solid rgba(0,122,255,0.45);
-    background-color: rgba(255,255,255,0.8);
-}
-QComboBox#dictSelector::drop-down {
-    border: none;
-    width: 18px;
-}
-QComboBox#dictSelector QAbstractItemView {
-    background-color: rgba(250,250,252,0.97);
-    border: 1px solid rgba(0,0,0,0.06);
-    border-radius: 10px;
-    selection-background-color: rgba(0,122,255,0.12);
-    selection-color: #0a4fa0;
-    padding: 4px;
-    outline: none;
-}
-
 /* ============ 内容区（玻璃卡片） ============ */
 QStackedWidget, QSplitter {
     background: transparent;
@@ -160,6 +133,46 @@ QSplitter::handle {
 }
 QSplitter::handle:hover {
     background: rgba(0,122,255,0.2);
+}
+
+/* ============ 多词典合并视图（可折叠玻璃卡片） ============ */
+QScrollArea#mergedView,
+QScrollArea#mergedView > QWidget > QWidget {
+    background: transparent;
+    border: none;
+}
+QFrame#dictCard {
+    background-color: rgba(255,255,255,0.78);
+    border: 1px solid rgba(255,255,255,0.95);
+    border-radius: 14px;
+}
+QPushButton#dictCardHeader {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    border-top-left-radius: 14px;
+    border-top-right-radius: 14px;
+    text-align: left;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #1d1d1f;
+}
+QPushButton#dictCardHeader:hover {
+    background-color: rgba(0,122,255,0.07);
+}
+/* 卡片内部词条：去掉浮起卡片的独立边距/边框，贴合卡片 */
+QFrame#dictCard QTextBrowser#entryView {
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    padding: 8px 18px 14px 18px;
+}
+QLabel#mergedPlaceholder {
+    color: #8e8e93;
+    font-size: 14px;
+    padding: 60px;
 }
 
 /* ============ 历史侧边栏（玻璃侧板） ============ */
