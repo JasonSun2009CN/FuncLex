@@ -32,6 +32,7 @@ permissions:
 
 env:
   PYTHON_VERSION: "3.11"
+  PYTHONUTF8: "1" # Windows 控制台默认 cp1252，强制 UTF-8 避免中文 print 崩溃
 
 jobs:
   build:
@@ -96,9 +97,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt pillow pyinstaller
           if ! pip install python-lzo; then
-            echo "::warning::python-lzo 无匹配 wheel，尝试从源码编译"
-            if [ "$RUNNER_OS" = "Linux" ]; then sudo apt-get install -y liblzo2-dev
-            elif [ "$RUNNER_OS" = "macOS" ]; then brew install lzo
+            echo "::warning::python-lzo 无匹配 wheel，从源码编译"
+            if [ "$RUNNER_OS" = "Linux" ]; then
+              sudo apt-get install -y liblzo2-dev
+            elif [ "$RUNNER_OS" = "macOS" ]; then
+              brew install lzo
+              # mac arm64 无 python-lzo wheel；universal2 Python 默认按双架构编译，
+              # 用 ARCHFLAGS 固定为本机单架构 + 显式指向 brew 的 lzo 头文件/库
+              export ARCHFLAGS="-arch $(uname -m)"
+              export CFLAGS="-I$(brew --prefix lzo)/include ${CFLAGS:-}"
+              export LDFLAGS="-L$(brew --prefix lzo)/lib ${LDFLAGS:-}"
             fi
             pip install python-lzo
           fi
@@ -115,7 +123,11 @@ jobs:
         run: |
           SEP=":"; [ "$RUNNER_OS" = "Windows" ] && SEP=";"
           ICON=""; [ -n "${{ matrix.icon }}" ] && ICON="--icon ${{ matrix.icon }}"
-          EXTRA=""; [ "$RUNNER_OS" = "macOS" ] && EXTRA="--osx-bundle-identifier com.funlex.app"
+          EXTRA=""
+          # mac 显式指定目标架构（universal2 Python 默认按宿主架构，写死更确定）
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            EXTRA="--osx-bundle-identifier com.funlex.app --target-architecture ${{ matrix.arch }}"
+          fi
           python -m PyInstaller --noconfirm --clean --onedir --windowed \
             --name FuncLex \
             --paths . \

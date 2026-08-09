@@ -88,6 +88,12 @@ def make_png(img: Image.Image, out: Path) -> None:
 
 
 def main() -> None:
+    # Windows 控制台默认 cp1252 无法编码中文 print，强制 UTF-8（CI 与本地双保险）
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
     ap = argparse.ArgumentParser(description="生成三平台应用图标")
     ap.add_argument("source", type=Path, help="源图 PNG/SVG（≥1024×1024）")
     ap.add_argument("outdir", type=Path, nargs="?", default=Path("packaging/assets"))
