@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QTextBrowser,
     QVBoxLayout,
     QWidget,
@@ -23,6 +24,31 @@ from PySide6.QtWidgets import (
 from funlex.core.models import DictionaryEntry
 
 from .styles import get_entry_default_css, sanitize_html
+
+
+class AutoResizeTextBrowser(QTextBrowser):
+    """随内容自动撑高的 QTextBrowser。
+
+    卡片内部不出现滚动条：高度按文档排版所需动态计算（heightForWidth），
+    整屏由外层 QScrollArea 统一滚动，保证卡片显示词条的全部内容。
+    """
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.document().setDocumentMargin(8)
+
+    def hasHeightForWidth(self) -> bool:
+        return True
+
+    def heightForWidth(self, width: int) -> int:
+        doc = self.document()
+        doc.setTextWidth(max(width, 1))
+        h = doc.size().height()
+        # 文档高度 + 边框 + 少量余量，避免裁切
+        return int(h) + self.frameWidth() * 2 + 8
 
 
 class DictCard(QFrame):
@@ -46,7 +72,7 @@ class DictCard(QFrame):
         self._collapsed = collapsed
         self.setObjectName("dictCard")
 
-        self._body = QTextBrowser(self)
+        self._body = AutoResizeTextBrowser(self)
         self._body.setObjectName("entryView")  # 复用词条玻璃卡片样式
         self._body.document().setDefaultStyleSheet(get_entry_default_css())
         self._body.setOpenExternalLinks(True)
