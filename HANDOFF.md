@@ -36,7 +36,8 @@ cd /Users/fiona/Documents/trae_projects/FuncLex
 - [x] 设置对话框（词典路径/默认词典/视图/历史条数/字号/字体 → config.json）
 - [x] 历史侧边栏（点击回查/右键删除/清空）
 - [x] 🔊 发音：检测到 `.mdd` 自动优先真实牛津原声；无则 TTS 合成并**标注"TTS 合成（非牛津原声）"**；⌘P 快捷键；词条内 `sound://` 图标可点击
-- [x] 📝 笔记（P3.1/P3.2）：合并视图底部固定"我的笔记"卡片，随查词切换；输入标"未保存"，⌘S/保存落盘，切词自动保存；菜单"所有笔记…"浏览/搜索/删除/回查
+- [x] 📝 笔记（P3.1/P3.2）：合并视图底部固定"我的笔记"卡片，随查词切换；输入标"未保存"，⌘S/保存落盘，切词自动保存；菜单"所有笔记…"浏览/搜索/删除/回查；**删除笔记均有确认弹窗**（按钮删除 / 清空保存=删除 / 对话框删除）
+- [x] 🌓 主题（P3.5）：设置对话框"浅色 / 深色 / 跟随系统"即时生效并持久化；浅色零改动（DARK_QSS 叠加），词条 HTML 双主题 token，system 模式监听 colorSchemeChanged 实时跟随
 - [x] 已清理误入库的 `__pycache__/*.pyc`
 
 ### 1.2 文件清单
@@ -60,7 +61,7 @@ _func_lex/
 │   │   ├── notes.py             ✅ NotesStore（P3.1：每词一条笔记，SQLite）
 │   │   └── config.py            ✅ ConfigManager（config.json）
 │   └── ui/                      ✅ PySide6
-│       ├── styles.py            QSS + EntryView 默认 CSS
+│       ├── styles.py            QSS + EntryView 默认 CSS + 主题（浅色/深色 token，DARK_QSS 叠加）
 │       ├── search_bar.py / entry_view.py / main_window.py
 │       ├── entry_view_merged.py 多词典合并视图（可折叠卡片 + 底部笔记卡片）
 │       ├── notes_card.py        ✅ 笔记编辑卡片（P3.2：输入即脏、⌘S 保存、切词自动保存）
@@ -173,6 +174,10 @@ Qt 的 QDir 用 `getattrlist` 枚举目录，会**跳过 `hidden` 文件** → �
 - **解法：venv 放在工作区之外**（本项目在 `~/funlex-venv`）。`chflags -R nohidden` 只能临时解决，Trae 会重新隐藏。
 - 排查工具：`find venv -flags +hidden | wc -l`、`ls -ldO venv`、`QT_DEBUG_PLUGINS=1 python app.py`
 
+### 坑 12：**深色主题是"叠加"而非"参数化"（新）**
+
+浅色 = `MAIN_QSS` 原样；深色 = 其后追加 `DARK_QSS`（同选择器等优先级后者胜）。**新增控件的浅色样式后，必须同步在 `DARK_QSS` 补一条深色覆盖**，否则深色下该控件保持浅色（反色 bug）。词条 HTML（QTextBrowser 内）走 `ENTRY_CSS_TPL` + 两套 token（`_ENTRY_PALETTES`），新增颜色规则需加 token 并双主题填值。占位/未找到页配色在 `entry_view._state_colors()`。
+
 ### 约定 1：分层原则（强制）
 Core 层**严禁** import PySide6；UI 层**只能**调 Core 公开 API。
 
@@ -205,7 +210,7 @@ UI 调 Core 用 `Signal` + `Slot`，不要传回调。
 
 完整清单见 `ROADMAP.md`。建议顺序：
 1. ~~P3.1/P3.2 笔记~~ ✅ 已完成（NotesStore + 笔记卡片 + 所有笔记对话框）
-2. **P3.5 深色主题**（styles.py 颜色集中，最易）
+2. ~~P3.5 深色主题~~ ✅ 已完成（DARK_QSS 叠加 + 词条 HTML token + 设置切换/跟随系统）
 3. **P3.3 搜索自动补全/模糊**（SQLite FTS5 或前缀索引）
 4. ~~P3.6 多词典合并查询~~ ✅ 已完成（见 Phase 2 交付）
 5. **P3.4 历史侧边栏 UI 增强**（分组、搜索）

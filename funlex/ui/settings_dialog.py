@@ -29,6 +29,13 @@ _COMMON_FONTS = [
     "Times New Roman",
 ]
 
+# 主题选项：(显示名, config 值)
+_THEME_OPTIONS = [
+    ("浅色", "light"),
+    ("深色", "dark"),
+    ("跟随系统", "system"),
+]
+
 
 class SettingsDialog(QDialog):
     """配置项：词典路径 / 词典显示顺序 / 历史条数 / 字号 / 字体。
@@ -85,6 +92,11 @@ class SettingsDialog(QDialog):
 
         form = QFormLayout()
         form.setContentsMargins(0, 12, 0, 0)
+        self.theme_combo = QComboBox()
+        for label, _ in _THEME_OPTIONS:
+            self.theme_combo.addItem(label)
+        form.addRow("主题", self.theme_combo)
+
         self.history_limit = QSpinBox()
         self.history_limit.setRange(10, 10000)
         self.history_limit.setSuffix(" 条")
@@ -126,6 +138,9 @@ class SettingsDialog(QDialog):
         self.history_limit.setValue(cfg.history_limit)
         self.font_size.setValue(cfg.font_size)
         self.font_family.setCurrentText(cfg.font_family or "")
+        theme = cfg.theme if cfg.theme in ("light", "dark", "system") else "light"
+        idx = next((i for i, (_, v) in enumerate(_THEME_OPTIONS) if v == theme), 0)
+        self.theme_combo.setCurrentIndex(idx)
 
     # ---------- 保存 ----------
     def _save(self) -> None:
@@ -134,9 +149,11 @@ class SettingsDialog(QDialog):
             self.order_list.item(i).text().split("  (")[0]
             for i in range(self.order_list.count())
         ]
+        theme = _THEME_OPTIONS[self.theme_combo.currentIndex()][1]
         self.config_mgr.update(
             dictionary_paths=paths,
             dictionary_order=order,
+            theme=theme,
             history_limit=self.history_limit.value(),
             font_family=self.font_family.currentText().strip(),
             font_size=self.font_size.value(),

@@ -132,7 +132,9 @@ FunLex/
   - 切词自动保存未提交改动；"所有笔记…"对话框（菜单入口）浏览/搜索/删除/回查
 - [ ] P3.3 搜索自动补全 / 模糊匹配
 - [ ] P3.4 历史记录侧边栏 UI 增强
-- [ ] P3.5 现代 QSS 样式主题（深色 / 浅色切换）
+- [x] P3.5 现代 QSS 样式主题（深色 / 浅色 / 跟随系统切换）
+  - 浅色主题零改动（Liquid Glass 原样）；深色叠加 DARK_QSS 覆盖块 + 词条 HTML token 双主题
+  - 设置对话框主题下拉即时生效并持久化；"跟随系统"监听 colorSchemeChanged 实时跟随
 - [x] P3.6 多词典合并查询（每词典可折叠卡片 + 设置中调整顺序 + 折叠偏好持久化）
 - [ ] P3.7 加载状态与错误提示优化
 - [ ] P3.8 复杂 MDX 排版升级 QWebEngineView
@@ -195,6 +197,13 @@ FunLex/
 
 - Core `NotesStore`（`data/notes.db`）：每词一条，`word` 小写主键，空内容保存=删除该条；RLock 线程安全，与 HistoryStore 同风格
 - UI：合并视图底部固定笔记卡片（输入即标记未保存、⌘S/按钮保存、切词自动保存、可删除）；"所有笔记"对话框浏览/搜索/删除/双击回查
+
+### 9. 主题系统
+
+- `styles.py` 模块级主题状态：`set_theme(light/dark/system)` → `resolve_theme()` 解析生效主题（system 用 `QGuiApplication.styleHints().colorScheme()`）
+- 浅色 = `MAIN_QSS`（原样，零回归）；深色 = 叠加 `DARK_QSS` 覆盖块（同选择器等优先级后者胜）
+- 词条 HTML 用 `ENTRY_CSS_TPL` + 两套 token 渲染（`get_entry_default_css(theme)`）；占位/未找到页 EntryView 按 `is_dark()` 取色
+- 设置对话框"主题"下拉（浅色/深色/跟随系统）即时生效并写 `config.theme`；system 模式监听 `colorSchemeChanged` 实时刷新
 
 ***
 

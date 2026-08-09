@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from funlex.core.config import ConfigManager
 from funlex.core.dictionary import DictionaryService
 from funlex.ui.main_window import MainWindow
-from funlex.ui.styles import get_main_qss
+from funlex.ui.styles import get_main_qss, set_theme
 
 
 def _excepthook(exc_type, exc_value, exc_tb) -> None:
@@ -30,10 +30,13 @@ def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName("FuncLex")
     app.setOrganizationName("FuncLex")
-    app.setStyleSheet(get_main_qss())
 
     # 配置（词典路径来自 config.json，未配置则走默认扫描目录）
     config_mgr = ConfigManager()
+    # 先按配置设定主题，再套全局 QSS
+    set_theme(config_mgr.config.theme)
+    app.setStyleSheet(get_main_qss())
+
     paths = config_mgr.config.dictionary_paths or None
 
     try:

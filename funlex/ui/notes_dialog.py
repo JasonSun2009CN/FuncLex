@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMenu,
+    QMessageBox,
     QPushButton,
     QVBoxLayout,
 )
@@ -137,7 +138,7 @@ class NotesDialog(QDialog):
         if item is None:
             return
         w = item.data(Qt.UserRole)
-        if w:
+        if w and self._confirm_delete(w):
             self.store.delete(w)
             self.refresh()
 
@@ -157,6 +158,17 @@ class NotesDialog(QDialog):
                 self.accept()
         elif chosen == del_act:
             w = item.data(Qt.UserRole)
-            if w:
+            if w and self._confirm_delete(w):
                 self.store.delete(w)
                 self.refresh()
+
+    def _confirm_delete(self, word: str) -> bool:
+        """删除笔记确认弹窗（不可撤销）。返回是否继续。"""
+        ret = QMessageBox.question(
+            self,
+            "删除笔记",
+            f"确定删除 “{word}” 的笔记吗？\n此操作不可撤销。",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        return ret == QMessageBox.Yes

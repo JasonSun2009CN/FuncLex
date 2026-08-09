@@ -10,11 +10,13 @@ from urllib.parse import quote, unquote
 import sys
 
 from PySide6.QtCore import QSize, Qt, QUrl
-from PySide6.QtGui import QAction, QColor, QFont, QIcon, QKeySequence
+from PySide6.QtGui import QAction, QColor, QFont, QGuiApplication, QIcon, QKeySequence
 from PySide6.QtWidgets import (
+    QApplication,
     QGraphicsDropShadowEffect,
     QHBoxLayout,
     QMainWindow,
+    QMessageBox,
     QPushButton,
     QSplitter,
     QStackedWidget,
@@ -31,6 +33,7 @@ from funlex.core.models import DictionaryEntry, PhraseItem
 from funlex.core.notes import NotesStore
 from funlex.core.parser import extract_audio_refs
 
+from . import styles
 from .build_worker import IndexBuildWorker
 from .entry_view import EntryView
 from .entry_view_merged import MergedEntryView
@@ -73,6 +76,9 @@ class MainWindow(QMainWindow):
         self.service = service
         self.config_mgr = config_mgr or ConfigManager()
         self.config = self.config_mgr.config
+        # 主题（light/dark/system）→ 生效主题，styles 模块持有；构造即套全局 QSS
+        styles.set_theme(self.config.theme)
+        QApplication.instance().setStyleSheet(styles.get_main_qss())
         self.history = HistoryStore(service.data_dir, limit=self.config.history_limit)
         self.notes = NotesStore(service.data_dir)
         self.pronounce = PronounceHelper(self)
@@ -211,6 +217,10 @@ class MainWindow(QMainWindow):
         # 笔记卡片
         self.merged_view.notes_card.saveRequested.connect(self._on_note_save)
         self.merged_view.notes_card.deleteRequested.connect(self._on_note_delete)
+        # 跟随系统：系统外观变化时实时刷新
+        QGuiApplication.styleHints().colorSchemeChanged.connect(
+            self._on_system_scheme_changed
+        )
 
     # ---------- 外观 ----------
     def _apply_appearance(self) -> None:
@@ -345,20 +355,42 @@ class MainWindow(QMainWindow):
     def _on_note_save(self, text: str) -> None:
         if not self._current_word:
             return
-        self.notes.save(self._current_word, text)
-        # 空内容 = 删除该条；刷新编辑器状态（保存按钮复位、删除按钮联动）
-        note = self.notes.get(self._current_word)
+        word = self._current_word
+        text = text.strip()
+        note = self.notes.get(word)
+        # 空内容 + 已有笔记 = 删除该条：先确认，取消则恢复原内容
+        if not text and note is not None:
+            if not self._confirm_delete_note(word):
+                self.merged_view.notes_card.set_content(note.content)
+                self.status.showMessage("已取消删除")
+                return
+        self.notes.save(word, text)
+        note = self.notes.get(word)
         self.merged_view.notes_card.set_content(note.content if note else "")
         self.status.showMessage(
-            "笔记已保存" if note else f"已删除 {self._current_word} 的笔记"
+            "笔记已保存" if note else f"已删除 {word} 的笔记"
         )
 
     def _on_note_delete(self) -> None:
         if not self._current_word:
             return
-        self.notes.delete(self._current_word)
+        word = self._current_word
+        if not self._confirm_delete_note(word):
+            return
+        self.notes.delete(word)
         self.merged_view.notes_card.set_content("")
-        self.status.showMessage(f"已删除 {self._current_word} 的笔记")
+        self.status.showMessage(f"已删除 {word} 的笔记")
+
+    def _confirm_delete_note(self, word: str) -> bool:
+        """删除笔记确认弹窗（不可撤销操作）。返回是否继续。"""
+        ret = QMessageBox.question(
+            self,
+            "删除笔记",
+            f"确定删除 “{word}” 的笔记吗？\n此操作不可撤销。",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        return ret == QMessageBox.Yes
 
     def _related_html(self, entries: List[DictionaryEntry]) -> str:
         """聚合所有词典的短语/习语，去重后渲染为相关区块"""
@@ -434,11 +466,29 @@ class MainWindow(QMainWindow):
         self.history.set_limit(self.config.history_limit)
         self._apply_appearance()
         self.service.set_dictionary_order(self.config.dictionary_order)
-        # 词典顺序可能变化，重渲当前词
+        # 主题设置可能变化：重设 QSS + entry CSS（当前词重渲染复用下方逻辑）
+        self._apply_theme()
+        # 词典顺序/主题变化，重渲当前词
         if self._current_word:
             entries = self.service.lookup_all(self._current_word)
             if entries:
                 self._render_merged(entries)
+
+    def _apply_theme(self) -> None:
+        """按 config.theme 应用生效主题：重设全局 QSS + 词条视图 CSS。"""
+        styles.set_theme(self.config.theme)
+        QApplication.instance().setStyleSheet(styles.get_main_qss())
+        self.entry_view.reapply_theme()
+
+    def _on_system_scheme_changed(self) -> None:
+        """'跟随系统' 模式下，系统外观变化即时切换。"""
+        if self.config.theme == "system" and styles.refresh_theme():
+            QApplication.instance().setStyleSheet(styles.get_main_qss())
+            self.entry_view.reapply_theme()
+            if self._current_word:
+                entries = self.service.lookup_all(self._current_word)
+                if entries:
+                    self._render_merged(entries)
 
     def _focus_search(self) -> None:
         self.search_bar.setFocus()

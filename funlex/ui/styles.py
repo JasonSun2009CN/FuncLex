@@ -8,10 +8,17 @@
 
 说明：Qt 6.11 未暴露 macOS 原生 vibrancy，采用纯 QSS 半透明"假玻璃"，
 面板叠在柔和渐变背景上形成浮起感，稳定且无渲染风险。
+
+主题：浅色 = MAIN_QSS（默认，原样保留）；深色 = 在其后叠加 DARK_QSS
+（同选择器等优先级后者胜），Entry 词条 HTML 用 ENTRY_CSS_TPL 渲染两套 token。
+模块级 `_current_theme` 由 set_theme()/refresh_theme() 维护，全 app 单一主题。
 """
 from __future__ import annotations
 
 import re
+
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QGuiApplication
 
 # QTextDocument 的 HTML 导入器遇到开头的 <link> 会丢弃整个文档
 # （实测：raw_content 以 <link rel="stylesheet"> 开头时 setHtml 后 blockCount==1、正文为空）。
@@ -26,6 +33,47 @@ def sanitize_html(html: str) -> str:
     if not html:
         return html
     return _HTML_STRIP_RE.sub("", html)
+
+
+# ---------- 主题状态（浅色/深色/跟随系统，全 app 单一） ----------
+_THEME_SETTING = "light"   # 用户选择：light / dark / system
+_CURRENT_THEME = "light"   # 生效主题：light / dark
+
+
+def resolve_theme(theme: str) -> str:
+    """把用户设置解析为生效主题；'system' 跟随系统外观。"""
+    if theme == "system":
+        try:
+            if QGuiApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark:
+                return "dark"
+        except Exception:
+            pass
+        return "light"
+    return theme if theme in ("light", "dark") else "light"
+
+
+def set_theme(theme: str) -> None:
+    """设置用户主题选择并立即解析生效。"""
+    global _THEME_SETTING, _CURRENT_THEME
+    _THEME_SETTING = theme if theme in ("light", "dark", "system") else "light"
+    _CURRENT_THEME = resolve_theme(_THEME_SETTING)
+
+
+def refresh_theme() -> bool:
+    """'system' 模式下按当前系统外观刷新；返回生效主题是否变化（供重设 QSS）。"""
+    global _CURRENT_THEME
+    new = resolve_theme(_THEME_SETTING)
+    changed = new != _CURRENT_THEME
+    _CURRENT_THEME = new
+    return changed
+
+
+def current_theme() -> str:
+    return _CURRENT_THEME
+
+
+def is_dark() -> bool:
+    return _CURRENT_THEME == "dark"
 
 
 # 主样式（Liquid Glass Minimalism）
@@ -421,18 +469,267 @@ QScrollBar::add-page, QScrollBar::sub-page {
 """
 
 
+# 深色主题覆盖块：叠加在浅色之上，同选择器等优先级后者胜（浅色主题零改动）。
+# 覆盖原则：只重写"表面/文字/边框"的浅色值；强调色(#007aff)、语义色(#ff9500/#af52de/#ff453a)两主题通用。
+DARK_QSS = """
+/* ============ 深色主题（Liquid Glass Dark） ============ */
+QMainWindow {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                stop:0 #1c1d24, stop:1 #141519);
+}
+QWidget {
+    color: #f2f2f7;
+}
+QToolTip {
+    background-color: rgba(42,44,54,0.97);
+    color: #f2f2f7;
+    border: 1px solid rgba(255,255,255,0.10);
+}
+
+/* 搜索区 */
+QWidget#searchContainer {
+    background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
+                stop:0 rgba(32,33,41,0.88), stop:1 rgba(28,29,36,0.6));
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+QLineEdit#searchInput {
+    background-color: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: #f2f2f7;
+    selection-background-color: #007aff;
+    selection-color: #ffffff;
+}
+QLineEdit#searchInput:hover {
+    background-color: rgba(255,255,255,0.10);
+}
+QLineEdit#searchInput:focus {
+    border: 1px solid rgba(0,122,255,0.6);
+    background-color: rgba(255,255,255,0.12);
+}
+QLineEdit#searchInput::placeholder {
+    color: #8e8e93;
+}
+QPushButton#clearButton {
+    color: #8e8e93;
+}
+QPushButton#clearButton:hover {
+    background-color: rgba(255,255,255,0.08);
+    color: #f2f2f7;
+}
+
+/* 发音按钮 */
+QPushButton#pronounceBtn {
+    background-color: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.10);
+}
+QPushButton#pronounceBtn:hover:enabled {
+    border: 1px solid rgba(0,122,255,0.5);
+    background-color: rgba(0,122,255,0.18);
+}
+QPushButton#pronounceBtn:pressed:enabled {
+    background-color: rgba(0,122,255,0.28);
+}
+QPushButton#pronounceBtn:disabled {
+    color: #5c5c66;
+    background-color: rgba(255,255,255,0.04);
+}
+
+/* 词条玻璃卡片 */
+QTextBrowser#entryView {
+    background-color: rgba(38,40,50,0.8);
+    border: 1px solid rgba(255,255,255,0.08);
+}
+QTextBrowser#entryView:focus {
+    border: 1px solid rgba(0,122,255,0.4);
+}
+QFrame#dictCard {
+    background-color: rgba(38,40,50,0.8);
+    border: 1px solid rgba(255,255,255,0.08);
+}
+QPushButton#dictCardHeader {
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    color: #f2f2f7;
+}
+QPushButton#dictCardHeader:hover {
+    background-color: rgba(0,122,255,0.12);
+}
+QLabel#mergedPlaceholder {
+    color: #8e8e93;
+}
+
+/* 历史侧边栏 */
+QWidget#historyPanel {
+    background: qlineargradient(x1:1,y1:0,x2:0,y2:0,
+                stop:0 rgba(34,35,43,0.72), stop:1 rgba(28,29,36,0.45));
+    border-left: 1px solid rgba(255,255,255,0.06);
+}
+QLabel#panelTitle {
+    color: #f2f2f7;
+}
+QLabel#panelCount {
+    color: #a1a1a6;
+    background-color: rgba(255,255,255,0.07);
+}
+QPushButton#panelClearBtn {
+    color: #4d9fff;
+}
+QPushButton#panelClearBtn:hover {
+    background-color: rgba(0,122,255,0.18);
+}
+QListWidget#historyList {
+    color: #f2f2f7;
+}
+QListWidget#historyList::item:hover {
+    background-color: rgba(255,255,255,0.07);
+}
+QListWidget#historyList::item:selected {
+    background-color: rgba(0,122,255,0.28);
+    color: #bcd9ff;
+}
+
+/* 笔记卡片 */
+QFrame#notesCard {
+    background-color: rgba(38,40,50,0.76);
+    border: 1px solid rgba(0,122,255,0.35);
+}
+QLabel#notesTitle {
+    color: #f2f2f7;
+}
+QLabel#notesWord {
+    color: #4d9fff;
+}
+QTextEdit#notesEdit {
+    background-color: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: #f2f2f7;
+    selection-background-color: #007aff;
+    selection-color: #ffffff;
+}
+QTextEdit#notesEdit:focus {
+    border: 1px solid rgba(0,122,255,0.6);
+    background-color: rgba(255,255,255,0.10);
+}
+QTextEdit#notesEdit::placeholder {
+    color: #8e8e93;
+}
+QLabel#notesHint {
+    color: #8e8e93;
+}
+QPushButton#notesSaveBtn:disabled {
+    background-color: rgba(0,122,255,0.25);
+    color: rgba(255,255,255,0.6);
+}
+QPushButton#notesDeleteBtn {
+    border: 1px solid rgba(255,69,58,0.4);
+    color: #ff6b61;
+}
+QPushButton#notesDeleteBtn:hover {
+    background-color: rgba(255,69,58,0.16);
+    border-color: rgba(255,69,58,0.6);
+}
+
+/* 设置 / 笔记对话框 */
+QDialog {
+    background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
+                stop:0 #22242c, stop:1 #191a20);
+}
+QDialog QLineEdit, QDialog QSpinBox, QDialog QComboBox {
+    background-color: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.10);
+    color: #f2f2f7;
+    selection-background-color: #007aff;
+    selection-color: #ffffff;
+}
+QDialog QLineEdit:focus, QDialog QSpinBox:focus {
+    border: 1px solid rgba(0,122,255,0.6);
+}
+QDialog QComboBox QAbstractItemView {
+    background-color: #22242c;
+    color: #f2f2f7;
+    selection-background-color: rgba(0,122,255,0.3);
+    border: 1px solid rgba(255,255,255,0.10);
+}
+QDialog QListWidget {
+    background-color: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.10);
+    color: #f2f2f7;
+}
+QDialog QPushButton {
+    background-color: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.10);
+    color: #f2f2f7;
+}
+QDialog QPushButton:hover {
+    background-color: rgba(255,255,255,0.14);
+    border-color: rgba(0,122,255,0.5);
+}
+QDialog QPushButton:default {
+    background-color: #007aff;
+    color: #ffffff;
+}
+QDialog QPushButton:default:hover {
+    background-color: #0a84ff;
+}
+QDialog QRadioButton::indicator:checked {
+    background-color: #007aff;
+    border: 2px solid #ffffff;
+}
+
+/* 笔记对话框控件 */
+QLineEdit#notesFilter {
+    background-color: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.10);
+    color: #f2f2f7;
+}
+QLineEdit#notesFilter:focus {
+    border: 1px solid rgba(0,122,255,0.6);
+}
+QListWidget#notesList {
+    background-color: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.10);
+    color: #f2f2f7;
+}
+QListWidget#notesList::item:hover {
+    background-color: rgba(0,122,255,0.12);
+}
+QListWidget#notesList::item:selected {
+    background-color: rgba(0,122,255,0.28);
+    color: #bcd9ff;
+}
+
+/* 状态栏 / 滚动条 */
+QStatusBar {
+    color: #8e8e93;
+    border-top: 1px solid rgba(255,255,255,0.06);
+}
+QScrollBar::handle:vertical {
+    background: rgba(255,255,255,0.14);
+}
+QScrollBar::handle:vertical:hover {
+    background: rgba(255,255,255,0.24);
+}
+QScrollBar::handle:horizontal {
+    background: rgba(255,255,255,0.14);
+}
+QScrollBar::handle:horizontal:hover {
+    background: rgba(255,255,255,0.24);
+}
+"""
+
+
 # EntryView 内嵌 HTML 的默认样式（Liquid Glass 一致、保证词条可读性）
-ENTRY_DEFAULT_CSS = """
+# 用 token 渲染两套主题；`{text}` 等替换自 _ENTRY_PALETTES。
+ENTRY_CSS_TPL = """
 <style>
 body {
     font-family: -apple-system, "PingFang SC", "SF Pro Text", "Inter", "Helvetica Neue", sans-serif;
-    color: #1d1d1f;
+    color: {text};
     line-height: 1.7;
     margin: 0;
     padding: 0;
 }
 h1, h2, h3 {
-    color: #1d1d1f;
+    color: {text};
     margin-top: 14px;
     margin-bottom: 8px;
 }
@@ -441,7 +738,7 @@ h1, h2, h3 {
     font-size: 24px;
     font-weight: 600;
     letter-spacing: -0.2px;
-    color: #1d1d1f;
+    color: {text};
 }
 /* 音标 */
 .phon, .phons_br, .phons_am, .pron {
@@ -452,21 +749,21 @@ h1, h2, h3 {
 }
 /* 词性标签 */
 .pos, .posi, .partofspeech {
-    color: #8e8e93;
+    color: {muted};
     font-style: italic;
     font-size: 13px;
     margin-right: 4px;
 }
 /* 例句 */
 .example, .eg, .examples, .x {
-    color: #3a3a3c;
+    color: {text_subtle};
     font-style: italic;
     margin: 4px 0 4px 16px;
     display: block;
 }
 /* 中文释义块 */
 .cn, .chn, .def_cn, .trans {
-    color: #1d1d1f;
+    color: {text};
 }
 /* 短语动词 / 习语 */
 .phrv, .phrasalverb, .pv {
@@ -499,12 +796,12 @@ li {
 .related-block {
     margin-top: 26px;
     padding-top: 16px;
-    border-top: 1px solid rgba(0,0,0,0.08);
+    border-top: 1px solid {divider};
 }
 .related-title {
     font-size: 13px;
     font-weight: 600;
-    color: #8e8e93;
+    color: {muted};
     letter-spacing: 0.3px;
     margin-bottom: 10px;
 }
@@ -516,23 +813,54 @@ a.related-item {
     margin: 3px 6px 3px 0;
     padding: 4px 12px;
     border-radius: 14px;
-    background-color: rgba(0,122,255,0.08);
-    color: #0a5cbf;
+    background-color: {chip_bg};
+    color: {chip_text};
     font-size: 13px;
     text-decoration: none;
 }
 a.related-item:hover {
-    background-color: rgba(0,122,255,0.16);
+    background-color: {chip_bg_hover};
 }
 </style>
 """
 
+# 词条 HTML 的两套配色 token
+_ENTRY_PALETTES = {
+    "light": {
+        "text": "#1d1d1f",
+        "text_subtle": "#3a3a3c",
+        "muted": "#8e8e93",
+        "divider": "rgba(0,0,0,0.08)",
+        "chip_text": "#0a5cbf",
+        "chip_bg": "rgba(0,122,255,0.08)",
+        "chip_bg_hover": "rgba(0,122,255,0.16)",
+    },
+    "dark": {
+        "text": "#f2f2f7",
+        "text_subtle": "#c7c7cc",
+        "muted": "#98989d",
+        "divider": "rgba(255,255,255,0.12)",
+        "chip_text": "#6ab0ff",
+        "chip_bg": "rgba(0,122,255,0.18)",
+        "chip_bg_hover": "rgba(0,122,255,0.28)",
+    },
+}
+
 
 def get_main_qss() -> str:
-    """返回主窗口 QSS"""
+    """返回主窗口 QSS（浅色原样；深色叠加 DARK_QSS 覆盖块）"""
+    if _CURRENT_THEME == "dark":
+        return MAIN_QSS + DARK_QSS
     return MAIN_QSS
 
 
-def get_entry_default_css() -> str:
-    """返回 EntryView 注入的默认 CSS（HTML 片段形式）"""
-    return ENTRY_DEFAULT_CSS
+def get_entry_default_css(theme: str | None = None) -> str:
+    """返回 EntryView 注入的默认 CSS（HTML 片段形式），按生效主题渲染 token。
+
+    用逐 token replace（而非 str.format），避免与 CSS 块花括号 `{}` 冲突。
+    """
+    key = theme if theme in _ENTRY_PALETTES else _CURRENT_THEME
+    out = ENTRY_CSS_TPL
+    for k, v in _ENTRY_PALETTES[key].items():
+        out = out.replace("{" + k + "}", v)
+    return out
