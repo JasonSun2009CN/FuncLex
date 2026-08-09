@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 
 from funlex.core.models import DictionaryEntry
 
+from .notes_card import NotesCard
 from .styles import get_entry_default_css, sanitize_html
 
 
@@ -118,25 +119,41 @@ class DictCard(QFrame):
         self._body.setFont(font)
 
 
-class MergedEntryView(QScrollArea):
-    """多词典合并显示：可折叠词典卡片纵向堆叠。"""
+class MergedEntryView(QWidget):
+    """多词典合并显示：可折叠词典卡片纵向堆叠 + 底部固定"我的笔记"卡片。
+
+    内部含 QScrollArea（词典卡片滚动区）与 NotesCard（固定底部，随查词切换）。
+    """
 
     anchorClicked = Signal(QUrl)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("mergedView")
-        self.setWidgetResizable(True)
-        self.setFrameShape(QFrame.NoFrame)
-        self._container = QWidget()
-        self._layout = QVBoxLayout(self._container)
-        self._layout.setContentsMargins(12, 12, 12, 12)
-        self._layout.setSpacing(12)
-        self.setWidget(self._container)
+
+        self.notes_card = NotesCard(self)
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+        root.addWidget(self._build_scroll_area(), 1)
+        root.addWidget(self.notes_card)
 
         self._cards: List[DictCard] = []
         self._on_toggle: Optional[Callable[[str, bool], None]] = None
         self._font: Optional[QFont] = None
+
+    def _build_scroll_area(self) -> QScrollArea:
+        scroll = QScrollArea(self)
+        scroll.setObjectName("mergedView")  # 沿用 QSS 透明背景
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        self._container = QWidget()
+        self._layout = QVBoxLayout(self._container)
+        self._layout.setContentsMargins(12, 12, 12, 12)
+        self._layout.setSpacing(12)
+        scroll.setWidget(self._container)
+        return scroll
 
     # ---------- 内部 ----------
     def _clear(self) -> None:
@@ -207,6 +224,11 @@ class MergedEntryView(QScrollArea):
         card.anchorClicked.connect(self.anchorClicked)
         return card
 
+    def set_note(self, word: str, content: str) -> None:
+        """底部笔记卡片切换到指定单词的内容。"""
+        self.notes_card.set_word(word)
+        self.notes_card.set_content(content)
+
     def show_empty(self, text: str = "输入单词开始查询") -> None:
         self._clear()
         label = QLabel(text)
@@ -214,3 +236,5 @@ class MergedEntryView(QScrollArea):
         label.setAlignment(Qt.AlignCenter)
         self._layout.addWidget(label)
         self._layout.addStretch(1)
+        self.notes_card.set_word("")
+        self.notes_card.set_content("")

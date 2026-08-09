@@ -28,12 +28,14 @@ from funlex.core.config import ConfigManager
 from funlex.core.dictionary import DictionaryService
 from funlex.core.history import HistoryStore
 from funlex.core.models import DictionaryEntry, PhraseItem
+from funlex.core.notes import NotesStore
 from funlex.core.parser import extract_audio_refs
 
 from .build_worker import IndexBuildWorker
 from .entry_view import EntryView
 from .entry_view_merged import MergedEntryView
 from .history_panel import HistoryPanel
+from .notes_dialog import NotesDialog
 from .pronounce import PronounceHelper
 from .search_bar import SearchBar
 from .settings_dialog import SettingsDialog
@@ -72,6 +74,7 @@ class MainWindow(QMainWindow):
         self.config_mgr = config_mgr or ConfigManager()
         self.config = self.config_mgr.config
         self.history = HistoryStore(service.data_dir, limit=self.config.history_limit)
+        self.notes = NotesStore(service.data_dir)
         self.pronounce = PronounceHelper(self)
 
         self._current_word = ""
@@ -182,6 +185,10 @@ class MainWindow(QMainWindow):
         act_clear_history.triggered.connect(self.history_panel._on_clear)
         app_menu.addAction(act_clear_history)
 
+        act_notes = QAction("所有笔记…", self)
+        act_notes.triggered.connect(self._open_notes)
+        app_menu.addAction(act_notes)
+
         app_menu.addSeparator()
         act_quit = QAction("退出", self)
         act_quit.setShortcut(QKeySequence.Quit)
@@ -201,6 +208,9 @@ class MainWindow(QMainWindow):
         self.entry_view.anchorClicked.connect(self._on_anchor_clicked)
         self.merged_view.anchorClicked.connect(self._on_anchor_clicked)
         self.history_panel.wordClicked.connect(self._on_search)
+        # 笔记卡片
+        self.merged_view.notes_card.saveRequested.connect(self._on_note_save)
+        self.merged_view.notes_card.deleteRequested.connect(self._on_note_delete)
 
     # ---------- 外观 ----------
     def _apply_appearance(self) -> None:
@@ -261,6 +271,8 @@ class MainWindow(QMainWindow):
 
     def _on_search(self, word: str) -> None:
         word = word.strip()
+        # 切词前自动保存当前笔记（若有未保存改动）
+        self._flush_note()
         if not word:
             self._show_state(self.entry_view.show_placeholder)
             self._current_word = ""
@@ -308,6 +320,11 @@ class MainWindow(QMainWindow):
             on_toggle=self._on_card_toggle,
         )
         self.stack.setCurrentIndex(1)
+        # 底部笔记卡片：切换到当前词
+        note = self.notes.get(self._current_word)
+        self.merged_view.set_note(
+            self._current_word, note.content if note else ""
+        )
 
     def _on_card_toggle(self, name: str, collapsed: bool) -> None:
         """折叠偏好持久化到 config：下次查词沿用"""
@@ -315,6 +332,33 @@ class MainWindow(QMainWindow):
         if collapsed:
             names.append(name)
         self.config_mgr.update(collapsed_dictionaries=names)
+
+    # ---------- 笔记 ----------
+    def _flush_note(self) -> None:
+        """切词前若有未保存改动，先落盘当前词笔记。"""
+        if not self._current_word:
+            return
+        card = self.merged_view.notes_card
+        if card.is_dirty():
+            self.notes.save(self._current_word, card.current_text())
+
+    def _on_note_save(self, text: str) -> None:
+        if not self._current_word:
+            return
+        self.notes.save(self._current_word, text)
+        # 空内容 = 删除该条；刷新编辑器状态（保存按钮复位、删除按钮联动）
+        note = self.notes.get(self._current_word)
+        self.merged_view.notes_card.set_content(note.content if note else "")
+        self.status.showMessage(
+            "笔记已保存" if note else f"已删除 {self._current_word} 的笔记"
+        )
+
+    def _on_note_delete(self) -> None:
+        if not self._current_word:
+            return
+        self.notes.delete(self._current_word)
+        self.merged_view.notes_card.set_content("")
+        self.status.showMessage(f"已删除 {self._current_word} 的笔记")
 
     def _related_html(self, entries: List[DictionaryEntry]) -> str:
         """聚合所有词典的短语/习语，去重后渲染为相关区块"""
@@ -379,6 +423,11 @@ class MainWindow(QMainWindow):
     def _open_settings(self) -> None:
         dlg = SettingsDialog(self.config_mgr, self.service, self)
         dlg.applied.connect(self._on_settings_applied)
+        dlg.exec()
+
+    def _open_notes(self) -> None:
+        dlg = NotesDialog(self.notes, self)
+        dlg.wordChosen.connect(self._on_search)
         dlg.exec()
 
     def _on_settings_applied(self) -> None:

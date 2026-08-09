@@ -175,6 +175,75 @@ QLabel#mergedPlaceholder {
     padding: 60px;
 }
 
+/* ============ 笔记卡片（合并视图底部，蓝色描边区分词典卡） ============ */
+QFrame#notesCard {
+    background-color: rgba(255,255,255,0.72);
+    border: 1px solid rgba(0,122,255,0.18);
+    border-radius: 14px;
+}
+QLabel#notesTitle {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1d1d1f;
+}
+QLabel#notesWord {
+    font-size: 12px;
+    color: #007aff;
+}
+QLabel#notesDirty {
+    font-size: 11px;
+    color: #ff9500;
+}
+QTextEdit#notesEdit {
+    background-color: rgba(255,255,255,0.6);
+    border: 1px solid rgba(0,0,0,0.06);
+    border-radius: 8px;
+    padding: 6px 8px;
+    font-size: 13px;
+    color: #1d1d1f;
+    selection-background-color: #007aff;
+    selection-color: #ffffff;
+}
+QTextEdit#notesEdit:focus {
+    border: 1px solid rgba(0,122,255,0.5);
+    background-color: rgba(255,255,255,0.85);
+}
+QTextEdit#notesEdit::placeholder {
+    color: #a1a1a6;
+}
+QLabel#notesHint {
+    font-size: 11px;
+    color: #a1a1a6;
+}
+QPushButton#notesSaveBtn {
+    background-color: #007aff;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    padding: 5px 16px;
+    font-size: 13px;
+    font-weight: 500;
+}
+QPushButton#notesSaveBtn:hover:enabled {
+    background-color: #0a84ff;
+}
+QPushButton#notesSaveBtn:disabled {
+    background-color: rgba(0,122,255,0.35);
+    color: rgba(255,255,255,0.85);
+}
+QPushButton#notesDeleteBtn {
+    background: transparent;
+    border: 1px solid rgba(255,69,58,0.35);
+    border-radius: 8px;
+    color: #ff453a;
+    font-size: 12px;
+    padding: 5px 12px;
+}
+QPushButton#notesDeleteBtn:hover {
+    background-color: rgba(255,69,58,0.1);
+    border-color: rgba(255,69,58,0.6);
+}
+
 /* ============ 历史侧边栏（玻璃侧板） ============ */
 QWidget#historyPanel {
     background: qlineargradient(x1:1,y1:0,x2:0,y2:0,
@@ -270,6 +339,39 @@ QDialog QRadioButton::indicator:checked {
     background-color: #007aff;
     border: 2px solid #ffffff;
     border-radius: 7px;
+}
+
+/* ============ 所有笔记对话框 ============ */
+QLineEdit#notesFilter {
+    background-color: rgba(255,255,255,0.8);
+    border: 1px solid rgba(0,0,0,0.07);
+    border-radius: 8px;
+    padding: 5px 10px;
+    max-width: 220px;
+}
+QLineEdit#notesFilter:focus {
+    border: 1px solid rgba(0,122,255,0.5);
+}
+QListWidget#notesList {
+    background-color: rgba(255,255,255,0.75);
+    border: 1px solid rgba(0,0,0,0.07);
+    border-radius: 10px;
+    padding: 4px;
+    outline: none;
+    font-size: 13px;
+    color: #1d1d1f;
+}
+QListWidget#notesList::item {
+    padding: 7px 10px;
+    border-radius: 6px;
+    margin: 1px 0;
+}
+QListWidget#notesList::item:hover {
+    background-color: rgba(0,122,255,0.08);
+}
+QListWidget#notesList::item:selected {
+    background-color: rgba(0,122,255,0.18);
+    color: #0a4fa0;
 }
 
 /* ============ 状态栏（极简） ============ */

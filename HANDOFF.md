@@ -36,6 +36,7 @@ cd /Users/fiona/Documents/trae_projects/FuncLex
 - [x] 设置对话框（词典路径/默认词典/视图/历史条数/字号/字体 → config.json）
 - [x] 历史侧边栏（点击回查/右键删除/清空）
 - [x] 🔊 发音：检测到 `.mdd` 自动优先真实牛津原声；无则 TTS 合成并**标注"TTS 合成（非牛津原声）"**；⌘P 快捷键；词条内 `sound://` 图标可点击
+- [x] 📝 笔记（P3.1/P3.2）：合并视图底部固定"我的笔记"卡片，随查词切换；输入标"未保存"，⌘S/保存落盘，切词自动保存；菜单"所有笔记…"浏览/搜索/删除/回查
 - [x] 已清理误入库的 `__pycache__/*.pyc`
 
 ### 1.2 文件清单
@@ -49,18 +50,21 @@ _func_lex/
 ├── funlex/
 │   ├── __init__.py              version 0.2.0（待 bump）
 │   ├── core/                    ✅ 纯 Python，无 UI 依赖
-│   │   ├── models.py            ✅ 数据模型（DictionaryEntry 已含 phonetics/pos/phrases）
+│   │   ├── models.py            ✅ 数据模型（DictionaryEntry 已含 phonetics/pos/phrases；NoteItem）
 │   │   ├── mdx_parser.py        ✅ 惰性迭代（不物化内容，修复 Phase1 内存根源）
 │   │   ├── indexer.py           ✅ SQLiteIndex（meta/entries/phrases，压缩，跳转解析）
 │   │   ├── dictionary.py        ✅ DictionaryService（扫描/分类/查询/发音资源）
 │   │   ├── audio.py             ✅ MddAudioIndex（.mdd 音频定向提取）
 │   │   ├── parser.py            ✅ EntryParser + extract_phrases + extract_audio_refs
 │   │   ├── history.py           ✅ HistoryStore（SQLite）
+│   │   ├── notes.py             ✅ NotesStore（P3.1：每词一条笔记，SQLite）
 │   │   └── config.py            ✅ ConfigManager（config.json）
 │   └── ui/                      ✅ PySide6
 │       ├── styles.py            QSS + EntryView 默认 CSS
 │       ├── search_bar.py / entry_view.py / main_window.py
-│       ├── entry_view_merged.py 多词典合并视图（可折叠卡片）
+│       ├── entry_view_merged.py 多词典合并视图（可折叠卡片 + 底部笔记卡片）
+│       ├── notes_card.py        ✅ 笔记编辑卡片（P3.2：输入即脏、⌘S 保存、切词自动保存）
+│       ├── notes_dialog.py      ✅ 所有笔记列表对话框（搜索/删除/双击回查）
 │       ├── history_panel.py / settings_dialog.py / pronounce.py / build_worker.py
 ├── data/                        🔲 运行时（index.db / history.db，gitignore）
 └── dictionaries/                🔲 可选放自定义 MDX
@@ -106,6 +110,15 @@ class SQLiteIndex:
 
 # funlex/core/history.py
 class HistoryStore: add / list(limit) / delete / clear / count / set_limit(limit)
+
+# funlex/core/notes.py（P3.1 新增）
+class NotesStore:
+    def __init__(self, data_dir)                       # data/notes.db
+    def get(word) -> Optional[NoteItem]                # 无则 None
+    def save(word, content) -> bool                    # 空内容 = 删除该条，返回 False
+    def delete(word)
+    def list(limit=500) -> List[NoteItem]              # 按 updated 倒序
+    def count() -> int
 
 # funlex/core/parser.py
 def parse_entry(word, dict_name, html) -> DictionaryEntry
@@ -178,19 +191,20 @@ UI 调 Core 用 `Signal` + `Slot`，不要传回调。
 
 | # | 类型 | 描述 | 工作量 |
 |---|------|------|--------|
-| 1 | 体验 | `README 2.md`（项目根，中文版特性草稿，含未实现的"笔记"）待整合/删除 | 小 |
+| 1 | 体验 | `README 2.md`（项目根，中文版特性草稿，含旧"笔记"设想）待整合/删除；笔记已独立实现，README 2.md 中相关段落可删 | 小 |
 | 2 | 解析 | 多词典 class 全覆盖（Collins/韦氏结构化） | 中 |
 | 3 | 发音 | 已支持 `.mdd` 真实音频（需用户自行获取 .mdd 放入词典目录）；可做"无 .mdd 时的发音设置开关" | 小 |
 | 4 | 性能 | 首构建约 1 分钟（一次性）；可加"仅构建常用词典"选项 | 中 |
 | 5 | 体验 | SearchBar 加 suggest 弹出补全（目前只状态栏提示） | 中 |
 | 6 | 功能 | `related_phrases()` 已暴露，UI 暂用 entry 字段（parse 结果），可直接切换 | 小 |
+| 7 | 笔记 | 未收录单词（词典查不到）暂无法记笔记；可扩展"未命中也显示笔记卡片" | 小 |
 
 ---
 
 ## 🚀 下一步（Phase 3 路线）
 
 完整清单见 `ROADMAP.md`。建议顺序：
-1. **P3.1/P3.2 笔记**（models 已有 `NoteItem`，SQLite 持久化 + 词条页编辑器）
+1. ~~P3.1/P3.2 笔记~~ ✅ 已完成（NotesStore + 笔记卡片 + 所有笔记对话框）
 2. **P3.5 深色主题**（styles.py 颜色集中，最易）
 3. **P3.3 搜索自动补全/模糊**（SQLite FTS5 或前缀索引）
 4. ~~P3.6 多词典合并查询~~ ✅ 已完成（见 Phase 2 交付）
