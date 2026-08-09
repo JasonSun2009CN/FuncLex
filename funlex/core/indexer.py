@@ -230,6 +230,17 @@ class SQLiteIndex:
         ).fetchall()
         return [r[0] for r in rows]
 
+    def suggest_contains(self, substring: str, dict_name: str, limit: int = 20) -> List[str]:
+        """模糊匹配：词中包含子串（LIKE 全表扫，仅供前缀无果时的回退补全）"""
+        s = substring.lower()
+        if not s:
+            return []
+        rows = self._conn.execute(
+            "SELECT word FROM entries WHERE dict=? AND word LIKE ? LIMIT ?",
+            (dict_name, f"%{s}%", limit),
+        ).fetchall()
+        return [r[0] for r in rows]
+
     def count(self, dict_name: str) -> int:
         return self._conn.execute(
             "SELECT COUNT(*) FROM entries WHERE dict=?", (dict_name,)

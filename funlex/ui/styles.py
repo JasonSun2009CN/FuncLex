@@ -136,6 +136,32 @@ QPushButton#clearButton:hover {
     color: #1d1d1f;
 }
 
+/* ============ 搜索补全弹窗 ============ */
+QListWidget#suggestPopup {
+    background-color: rgba(255,255,255,0.96);
+    border: 1px solid rgba(0,0,0,0.08);
+    border-radius: 10px;
+    padding: 4px;
+    outline: none;
+    font-size: 13px;
+    color: #1d1d1f;
+}
+QListWidget#suggestPopup::item {
+    padding: 6px 12px;
+    border-radius: 6px;
+    margin: 1px 2px;
+}
+QListWidget#suggestPopup::item:hover {
+    background-color: rgba(0,122,255,0.08);
+}
+QListWidget#suggestPopup::item:selected {
+    background-color: rgba(0,122,255,0.18);
+    color: #0a4fa0;
+}
+QListWidget#suggestPopup::item:selected:hover {
+    background-color: rgba(0,122,255,0.24);
+}
+
 /* ============ 发音按钮（玻璃胶囊） ============ */
 QPushButton#pronounceBtn {
     background-color: rgba(255,255,255,0.6);
@@ -515,6 +541,23 @@ QPushButton#clearButton {
 QPushButton#clearButton:hover {
     background-color: rgba(255,255,255,0.08);
     color: #f2f2f7;
+}
+
+/* 搜索补全弹窗 */
+QListWidget#suggestPopup {
+    background-color: rgba(38,40,50,0.97);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: #f2f2f7;
+}
+QListWidget#suggestPopup::item:hover {
+    background-color: rgba(0,122,255,0.12);
+}
+QListWidget#suggestPopup::item:selected {
+    background-color: rgba(0,122,255,0.3);
+    color: #bcd9ff;
+}
+QListWidget#suggestPopup::item:selected:hover {
+    background-color: rgba(0,122,255,0.38);
 }
 
 /* 发音按钮 */

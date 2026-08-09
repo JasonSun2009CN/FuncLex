@@ -130,7 +130,9 @@ FunLex/
 - [x] P3.2 笔记编辑器 UI（嵌入词条页）
   - 合并视图底部固定"我的笔记"卡片，随查词切换；输入即标记未保存，⌘S / 保存按钮落盘
   - 切词自动保存未提交改动；"所有笔记…"对话框（菜单入口）浏览/搜索/删除/回查
-- [ ] P3.3 搜索自动补全 / 模糊匹配
+- [x] P3.3 搜索自动补全 / 模糊匹配
+  - 输入防抖(150ms)后弹出玻璃补全下拉（≤8 条）；↑↓ 导航、回车/点击选中并回填；Esc 关闭；回车不拦截以兼容中文输入法
+  - 建议策略：前缀跨词典去重优先，不足用最大词典的包含匹配(LIKE)补齐（模糊，仅前缀无果触发，~150ms）
 - [ ] P3.4 历史记录侧边栏 UI 增强
 - [x] P3.5 现代 QSS 样式主题（深色 / 浅色 / 跟随系统切换）
   - 浅色主题零改动（Liquid Glass 原样）；深色叠加 DARK_QSS 覆盖块 + 词条 HTML token 双主题
@@ -204,6 +206,12 @@ FunLex/
 - 浅色 = `MAIN_QSS`（原样，零回归）；深色 = 叠加 `DARK_QSS` 覆盖块（同选择器等优先级后者胜）
 - 词条 HTML 用 `ENTRY_CSS_TPL` + 两套 token 渲染（`get_entry_default_css(theme)`）；占位/未找到页 EntryView 按 `is_dark()` 取色
 - 设置对话框"主题"下拉（浅色/深色/跟随系统）即时生效并写 `config.theme`；system 模式监听 `colorSchemeChanged` 实时刷新
+
+### 10. 搜索自动补全
+
+- `SearchBar` 内置防抖(150ms) + 浮动补全弹窗（`QListWidget`，`FramelessWindowHint|WindowDoesNotAcceptFocus` 不抢输入框焦点，`WA_ShowWithoutActivating`）
+- **回车不拦截**：方向键/ Esc 由 `SuggestionLineEdit.keyPressEvent` 处理，回车走 Qt `returnPressed`，避免破坏中文输入法组词确认
+- 建议来源 `service.suggest_words(prefix, limit)`：前缀跨词典去重（PK 范围扫描，毫秒级）→ 不足时最大词典 LIKE 包含匹配补齐（模糊，仅无前缀结果触发，~150ms 可接受）
 
 ***
 

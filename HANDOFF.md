@@ -38,6 +38,7 @@ cd /Users/fiona/Documents/trae_projects/FuncLex
 - [x] 🔊 发音：检测到 `.mdd` 自动优先真实牛津原声；无则 TTS 合成并**标注"TTS 合成（非牛津原声）"**；⌘P 快捷键；词条内 `sound://` 图标可点击
 - [x] 📝 笔记（P3.1/P3.2）：合并视图底部固定"我的笔记"卡片，随查词切换；输入标"未保存"，⌘S/保存落盘，切词自动保存；菜单"所有笔记…"浏览/搜索/删除/回查；**删除笔记均有确认弹窗**（按钮删除 / 清空保存=删除 / 对话框删除）
 - [x] 🌓 主题（P3.5）：设置对话框"浅色 / 深色 / 跟随系统"即时生效并持久化；浅色零改动（DARK_QSS 叠加），词条 HTML 双主题 token，system 模式监听 colorSchemeChanged 实时跟随
+- [x] 🔍 搜索补全（P3.3）：输入防抖(150ms)弹玻璃下拉（前缀跨词典去重，不足模糊包含补齐）；↑↓/回车/点击选中并回填；Esc 关闭；回车不拦截兼容中文输入法
 - [x] 已清理误入库的 `__pycache__/*.pyc`
 
 ### 1.2 文件清单
@@ -62,7 +63,8 @@ _func_lex/
 │   │   └── config.py            ✅ ConfigManager（config.json）
 │   └── ui/                      ✅ PySide6
 │       ├── styles.py            QSS + EntryView 默认 CSS + 主题（浅色/深色 token，DARK_QSS 叠加）
-│       ├── search_bar.py / entry_view.py / main_window.py
+│       ├── search_bar.py        ✅ 搜索框：防抖 + 补全弹窗（SuggestionLineEdit 方向键/Esc，回车走 returnPressed）
+│       ├── entry_view.py / main_window.py
 │       ├── entry_view_merged.py 多词典合并视图（可折叠卡片 + 底部笔记卡片）
 │       ├── notes_card.py        ✅ 笔记编辑卡片（P3.2：输入即脏、⌘S 保存、切词自动保存）
 │       ├── notes_dialog.py      ✅ 所有笔记列表对话框（搜索/删除/双击回查）
@@ -200,7 +202,7 @@ UI 调 Core 用 `Signal` + `Slot`，不要传回调。
 | 2 | 解析 | 多词典 class 全覆盖（Collins/韦氏结构化） | 中 |
 | 3 | 发音 | 已支持 `.mdd` 真实音频（需用户自行获取 .mdd 放入词典目录）；可做"无 .mdd 时的发音设置开关" | 小 |
 | 4 | 性能 | 首构建约 1 分钟（一次性）；可加"仅构建常用词典"选项 | 中 |
-| 5 | 体验 | SearchBar 加 suggest 弹出补全（目前只状态栏提示） | 中 |
+| 5 | 体验 | 补全建议按字典序较原始；可做常用词优先/词频排序（现为 PK 字典序） | 中 |
 | 6 | 功能 | `related_phrases()` 已暴露，UI 暂用 entry 字段（parse 结果），可直接切换 | 小 |
 | 7 | 笔记 | 未收录单词（词典查不到）暂无法记笔记；可扩展"未命中也显示笔记卡片" | 小 |
 
@@ -209,9 +211,9 @@ UI 调 Core 用 `Signal` + `Slot`，不要传回调。
 ## 🚀 下一步（Phase 3 路线）
 
 完整清单见 `ROADMAP.md`。建议顺序：
-1. ~~P3.1/P3.2 笔记~~ ✅ 已完成（NotesStore + 笔记卡片 + 所有笔记对话框）
+1. ~~P3.1/P3.2 笔记~~ ✅ 已完成（NotesStore + 笔记卡片 + 所有笔记对话框 + 删除确认）
 2. ~~P3.5 深色主题~~ ✅ 已完成（DARK_QSS 叠加 + 词条 HTML token + 设置切换/跟随系统）
-3. **P3.3 搜索自动补全/模糊**（SQLite FTS5 或前缀索引）
+3. ~~P3.3 搜索自动补全/模糊~~ ✅ 已完成（防抖 + 补全弹窗 + 前缀/模糊建议）
 4. ~~P3.6 多词典合并查询~~ ✅ 已完成（见 Phase 2 交付）
 5. **P3.4 历史侧边栏 UI 增强**（分组、搜索）
 

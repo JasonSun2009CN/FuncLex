@@ -291,6 +291,35 @@ class DictionaryService:
                 break
         return results
 
+    def suggest_words(self, prefix: str, limit: int = 8) -> List[str]:
+        """搜索建议：前缀优先（跨词典去重）；不足用首词典的包含匹配补齐（模糊）。
+
+        前缀命中率高时只走 PK 范围扫描；仅当前缀结果不足 limit 才触发 LIKE 全表扫
+        （代价可控），保证补全弹窗总是有内容。
+        """
+        if not prefix or not prefix.strip():
+            return []
+        out: List[str] = []
+        seen = set()
+        for w, _ in self.suggest(prefix.strip(), limit * 3):
+            if w not in seen:
+                seen.add(w)
+                out.append(w)
+            if len(out) >= limit:
+                return out
+        # 前缀不足：用最大词典的包含匹配补齐
+        infos = self.list_dictionaries()
+        if infos and len(out) < limit:
+            for w in self._index.suggest_contains(
+                prefix.strip(), infos[0].name, limit * 2
+            ):
+                if w not in seen:
+                    seen.add(w)
+                    out.append(w)
+                if len(out) >= limit:
+                    break
+        return out
+
     def related_phrases(
         self, word: str, dictionary_name: Optional[str] = None
     ) -> List[PhraseItem]:

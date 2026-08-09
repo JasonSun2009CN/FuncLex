@@ -122,8 +122,9 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # 顶部：搜索栏（玻璃条 + 柔和投影）
+        # 顶部：搜索栏（玻璃条 + 柔和投影）；注入补全建议来源
         self.search_bar = SearchBar(central)
+        self.search_bar.set_suggest_cb(self._suggest_words)
         root.addWidget(self.search_bar)
         _glass_shadow(self.search_bar, blur=22, dy=3, alpha=30)
 
@@ -281,6 +282,7 @@ class MainWindow(QMainWindow):
 
     def _on_search(self, word: str) -> None:
         word = word.strip()
+        self.search_bar.hide_popup()
         # 切词前自动保存当前笔记（若有未保存改动）
         self._flush_note()
         if not word:
@@ -436,18 +438,17 @@ class MainWindow(QMainWindow):
             self.status.showMessage(f"发音：{self.pronounce.source_label()}")
 
     def _on_text_changed_debounced(self, text: str) -> None:
-        if len(text.strip()) < 2:
-            if not self.service.ordered_dictionaries():
-                self.status.showMessage("索引构建中，请稍候…")
-            else:
-                self.status.showMessage("就绪")
-            return
-        suggestions = self.service.suggest(text.strip(), limit=1)
-        if suggestions:
-            count = len(self.service.suggest(text.strip(), limit=1000))
-            self.status.showMessage(f'"{text}" 匹配到约 {count}+ 词条，按回车查询')
+        # 补全弹窗由 SearchBar 内部负责；这里仅保留轻量状态提示
+        if not self.service.ordered_dictionaries():
+            self.status.showMessage("索引构建中，请稍候…")
+        elif not text.strip():
+            self.status.showMessage("就绪")
         else:
-            self.status.showMessage(f'"{text}" 无匹配')
+            self.status.showMessage("输入回车查询 · ↑↓ 选择补全")
+
+    def _suggest_words(self, prefix: str):
+        """补全建议：前缀跨词典去重，不足用模糊包含补齐（P3.3）"""
+        return self.service.suggest_words(prefix, limit=8)
 
     def _on_toggle_history(self, checked: bool) -> None:
         self.history_panel.setVisible(checked)
